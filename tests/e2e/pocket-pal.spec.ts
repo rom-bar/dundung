@@ -118,6 +118,81 @@ test('settings persist size, handedness, opacity, haptics, sound, and CRT choice
   await expect(page.getByTestId('crt-toggle')).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('growth HUD and Form Dex show current progress and silhouettes for undiscovered forms', async ({ page }) => {
+  await openFreshGame(page);
+  await expect(page.locator('#level-value')).toHaveText('1');
+  await expect(page.locator('.stat-chip')).toHaveCount(5);
+  await page.getByTestId('forms-open').click();
+  const dex = page.getByRole('dialog', { name: 'Form Dex' });
+  await expect(dex).toBeVisible();
+  await expect(page.locator('#dex-progress')).toHaveText('0 of 20 forms found · scroll to explore');
+  await expect(page.locator('.form-card.is-unknown')).toHaveCount(20);
+  const grid = page.locator('#form-grid');
+  expect(await grid.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await grid.focus();
+  await expect(grid).toBeFocused();
+  await grid.evaluate((element) => element.scrollTo(0, element.scrollHeight));
+  await expect(grid.locator('.form-card').last()).toBeInViewport();
+  await expect(page.locator('#hall-list')).toContainText('Past pets');
+  await page.getByRole('button', { name: 'Close Form Dex' }).click();
+  await expect(dex).toBeHidden();
+});
+
+test('memory mini-game awards a score and applies capped training to the selected stat', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1280', 'the timing-based memory sequence is exercised on desktop only');
+  await page.addInitScript(() => {
+    const workerPrototype = Worker.prototype as unknown as { postMessage: (...args: any[]) => void };
+    const originalPostMessage = workerPrototype.postMessage;
+    workerPrototype.postMessage = function (this: Worker, message: any, ...options: any[]) {
+      const loadMessage = message as { type?: string; state?: Record<string, unknown> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const evolution = loadMessage.state.evolution as Record<string, unknown>;
+        loadMessage.state = {
+          ...loadMessage.state,
+          stage: 'baby',
+          stageSeconds: 0,
+          generationSeconds: 0,
+          evolution: { ...evolution, formId: 'fire-emberguard', traitIds: ['steadfast'] },
+          formDex: ['fire-emberguard'],
+        };
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  });
+  await openFreshGame(page);
+  await expect(page.getByTestId('minigames-open')).toBeEnabled();
+  await page.getByTestId('minigames-open').click();
+  const dialog = page.getByRole('dialog', { name: 'Training games' });
+  await expect(dialog).toBeVisible();
+  await page.getByLabel('Train a stat').selectOption('ATK');
+  await page.getByRole('button', { name: /Echo Garden/ }).click();
+  await expect(page.locator('#memory-prompt')).toHaveText('Now repeat the 10-symbol trail.', { timeout: 20_000 });
+  for (const index of [0, 2, 1, 3, 0, 1, 2, 3, 1, 0]) await page.locator(`[data-memory-index="${index}"]`).click();
+  await expect(page.locator('.game-prompt')).toContainText('Game complete · 100/100');
+  await expect(page.locator('#toast')).toContainText('Training complete: +2 attack points.', { timeout: 5_000 });
+  await expect(page.locator('.stat-chip[title^="Attack"]')).toContainText('11');
+  await expect(page.getByTestId('minigames-open')).toBeDisabled();
+});
+
+test('the installed app reloads offline after the service worker is ready', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1280', 'offline reload is verified once on desktop');
+  await openFreshGame(page);
+  await page.evaluate(async () => {
+    if (!('serviceWorker' in navigator)) throw new Error('Service workers are unavailable.');
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload();
+  await openFreshGame(page);
+  await page.context().setOffline(true);
+  try {
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Little needs' })).toBeVisible();
+    await expect(page.locator('[data-need-value="hunger"]')).not.toHaveText('—');
+  } finally {
+    await page.context().setOffline(false);
+  }
+});
+
 test('haptics stay off by default and vibrate once when enabled for touch', async ({ page }) => {
   await openFreshGame(page);
   await page.evaluate(() => {
@@ -256,6 +331,9 @@ test('capture representative mobile and landscape review states', async ({ page 
     await page.getByTestId('action-play').tap();
     await page.waitForTimeout(250);
     await page.screenshot({ path: resolve(screenshotDir, 'pocket-pal-360-active.png'), scale: 'css' });
+    await page.getByTestId('forms-open').tap();
+    await expect(page.getByRole('dialog', { name: 'Form Dex' })).toBeVisible();
+    await page.screenshot({ path: resolve(screenshotDir, 'pocket-pal-360-form-dex.png'), scale: 'css' });
   }
   if (testInfo.project.name === 'phone-390') {
     await page.getByTestId('settings-open').click();

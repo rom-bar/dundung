@@ -1,5 +1,7 @@
 import type { GameState } from '../core/types';
 import { getMood } from '../core/game';
+import evolutions from '../data/evolutions.json';
+import { getFormDefinition } from '../core/progression';
 
 const width = 240;
 const height = 160;
@@ -83,23 +85,51 @@ function drawEgg(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: 
   rect(ctx, x + 17, top + 35, 10, 3, colors.honeyShade);
 }
 
-function drawBaby(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: number, sleeping: boolean): void {
+function drawBaby(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: number, sleeping: boolean, state: GameState): void {
   const x = cx - 24;
   const hop = frame % 2 === 0 ? 0 : -3;
   const y = top + hop;
+  const form = getFormDefinition(state.evolution.formId);
+  const palette = form ? evolutions.elements[form.element] : null;
+  const body = palette?.color ?? colors.pet;
+  const shade = palette?.shade ?? colors.petShade;
+  const light = palette?.light ?? colors.petLight;
+  const scale = state.stage === 'baby' ? 1 : state.stage === 'teen' ? 1.08 : state.stage === 'adult' ? 1.18 : 1.12;
+  ctx.save();
+  ctx.translate(cx, y + 27);
+  ctx.scale(scale, scale);
+  ctx.translate(-cx, -y - 27);
 
-  // Ear-like leaf tips, round body, small feet, and a two-tone belly.
-  rect(ctx, x + 5, y + 15, 8, 10, colors.petShade);
-  rect(ctx, x + 11, y + 7, 8, 10, colors.mint);
-  rect(ctx, x + 34, y + 7, 8, 10, colors.mint);
-  rect(ctx, x + 39, y + 15, 7, 10, colors.petShade);
-  rect(ctx, x + 5, y + 25, 6, 20, colors.petShade);
-  rect(ctx, x + 11, y + 17, 34, 31, colors.pet);
-  rect(ctx, x + 17, y + 11, 22, 8, colors.pet);
-  rect(ctx, x + 11, y + 42, 8, 8, colors.petShade);
-  rect(ctx, x + 37, y + 42, 8, 8, colors.petShade);
-  rect(ctx, x + 18, y + 31, 20, 13, colors.petLight);
+  // The base pixel body keeps the same silhouette while palettes and small marks make forms distinct.
+  rect(ctx, x + 5, y + 15, 8, 10, shade);
+  rect(ctx, x + 11, y + 7, 8, 10, body);
+  rect(ctx, x + 34, y + 7, 8, 10, body);
+  rect(ctx, x + 39, y + 15, 7, 10, shade);
+  rect(ctx, x + 5, y + 25, 6, 20, shade);
+  rect(ctx, x + 11, y + 17, 34, 31, body);
+  rect(ctx, x + 17, y + 11, 22, 8, body);
+  rect(ctx, x + 11, y + 42, 8, 8, shade);
+  rect(ctx, x + 37, y + 42, 8, 8, shade);
+  rect(ctx, x + 18, y + 31, 20, 13, light);
   rect(ctx, x + 13, y + 22, 6, 4, colors.cream);
+
+  if (form?.archetype === 'tank') {
+    rect(ctx, x + 1, y + 27, 10, 9, shade);
+    rect(ctx, x + 41, y + 27, 9, 9, shade);
+    rect(ctx, x + 21, y + 15, 8, 5, light);
+  } else if (form?.archetype === 'striker') {
+    rect(ctx, x + 14, y + 3, 5, 8, light);
+    rect(ctx, x + 34, y + 3, 5, 8, light);
+    rect(ctx, x + 22, y + 42, 7, 3, shade);
+  } else if (form?.archetype === 'trickster') {
+    rect(ctx, x - 3, y + 35, 8, 4, shade);
+    rect(ctx, x - 7, y + 31, 5, 4, body);
+    rect(ctx, x + 40, y + 11, 6, 4, light);
+  } else if (form?.archetype === 'healer') {
+    rect(ctx, x + 20, y + 4, 8, 6, light);
+    rect(ctx, x + 15, y + 8, 6, 4, body);
+    rect(ctx, x + 28, y + 8, 6, 4, body);
+  }
 
   if (sleeping) {
     rect(ctx, x + 17, y + 25, 7, 3, colors.deep);
@@ -116,6 +146,7 @@ function drawBaby(ctx: CanvasRenderingContext2D, cx: number, top: number, frame:
   }
   rect(ctx, x + 9, y + 31, 5, 4, colors.plum);
   rect(ctx, x + 41, y + 31, 5, 4, colors.plum);
+  ctx.restore();
 }
 
 function drawSignal(ctx: CanvasRenderingContext2D, state: GameState): void {
@@ -152,8 +183,16 @@ export function drawPetScene(
   const petTop = 83 + (bouncing ? Math.sin(animationTime * 14) * 5 : eating ? 2 : 0);
 
   if (state.stage === 'egg') drawEgg(ctx, 120, petTop + 1, frame);
-  else drawBaby(ctx, 120, petTop, frame, state.sleeping || state.animation === 'sleep');
+  else drawBaby(ctx, 120, petTop, frame, state.sleeping || state.animation === 'sleep', state);
   drawSignal(ctx, state);
+
+  if (state.animation === 'evolve' && state.animationRemainingSeconds > 0) {
+    const twinkle = reducedMotion ? 0 : Math.floor(nowSeconds * 8) % 2;
+    rect(ctx, 82, 77 - twinkle, 4, 4, colors.honey);
+    rect(ctx, 150, 72 + twinkle, 4, 4, colors.honey);
+    rect(ctx, 92, 54 + twinkle, 3, 3, colors.mint);
+    rect(ctx, 143, 56 - twinkle, 3, 3, colors.mint);
+  }
 
   if (state.sleeping && state.stage === 'baby') {
     ctx.fillStyle = colors.honey;

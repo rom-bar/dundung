@@ -1,12 +1,16 @@
 # Pocket Pal
 
-A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phase 1: foundation and care loop** and **Phase 2: mini mode**. Dungeon runs, equipment, and generations are later phases.
+A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phases 1–3**: the care loop, mini mode, life stages, stats, training, and form collection. Dungeon runs and equipment are later phases.
 
 **Live site:** <https://rom-bar.github.io/dundung/> (available after GitHub Pages is enabled and the first deployment succeeds).
 
 ## Play
 
-Open the live site once while online, then Pocket Pal can load offline from the same browser. Feed Pip one of three snacks, play, tuck Pip in or wake them, and clean up. The four needs change only during active play. If the page is hidden, closed, or loses focus, the game pauses and saves; returning never applies time away. On supported browsers, open **Mini** before switching apps to keep Pip's needs moving and use quick care actions in a floating window.
+Open the live site once while online, then Pocket Pal can load offline from the same browser. Feed Pip one of three snacks, play, tuck Pip in or wake them, clean up, and watch the egg hatch after one active minute. The life cycle continues through Baby, Teen, Adult, and Elder; each stage lasts 15, 45, 120, and 60 active minutes. Elder leaves a new egg with a trait and a small legacy stat bonus. Time never advances while away.
+
+Care nudges Pip's next form without deciding it: the seeded evolution roll weighs play, rest, training, food, hygiene, and elemental food tags. Open **Forms** for the 20-entry Form Dex and past pets. After hatching, **Play a training game** opens Quick Spark (reaction), Echo Garden (memory), or Beat Bubbles (rhythm); results award XP and up to three points, subject to a per-stat training cap of two points per level. A 45-second active-time breather follows each completed game. The five stats and level appear in the growth panel.
+
+On supported browsers, open **Mini** before switching apps to keep Pip's needs moving and use quick care actions in a floating window.
 
 Use the care buttons or keyboard shortcuts: **1–3** offer the three snacks, **P** plays, **S** toggles sleep, and **C** cleans. On portrait phones, the care buttons stick to the bottom when the care section is in view. Open **Settings** to switch Sound or CRT scanlines, choose button size and opacity, mirror the care controls for a left-handed layout, or enable a short touch haptic. These preferences stay on this device. Buttons act once per press; holding them never repeats a care action. The small hash router uses `#/` for the home screen and `#/about` for the About page, which explains the original-content policy.
 
@@ -37,10 +41,11 @@ The workflow in `.github/workflows/deploy.yml` runs type-checks, Vitest, and the
 
 ## Data files
 
-All Phase 1 gameplay tuning lives in JSON under `src/data/` rather than being embedded in simulation code:
+Gameplay tuning and form definitions live in JSON under `src/data/` rather than being embedded in the simulation:
 
 - `foods.json` defines the three snacks and their effects. To add a snack, give it a unique `id`, display `name`, `description`, numeric `hunger`, `happiness`, `energy`, and `hygiene` effects, plus descriptive `tags`. The UI creates a snack button from the data automatically.
-- `rules.json` defines need bounds and signal thresholds, per-need signal cooldowns, starting needs, awake/sleeping decay, stage timing, action cooldowns, action effects, animation timing, worker/save intervals, and toast queue limits.
+- `rules.json` defines need bounds and signal thresholds, per-need signal cooldowns, starting needs, awake/sleeping decay, stage timing and level caps, XP rewards, mini-game durations/scoring/cooldowns, tendency signals, action cooldowns/effects, animation timing, worker/save intervals, and toast queue limits.
+- `evolutions.json` defines the 20 element/archetype forms, rarity weights and pity, care affinities, elemental and archetype stat multipliers, base stats, and level growth. `traits.json` defines passive, mutation, and drawback effects.
 
 Quest and item data belong to later dungeon phases and are not part of this build; add their JSON schemas when those features are implemented, not ahead of the phase plan.
 
@@ -57,7 +62,7 @@ Mini mode prefers the Document Picture-in-Picture API. If that API is missing or
 
 ## Tests and acceptance checks
 
-`npm run test:unit` covers clamped simulation steps, active-time decay, sleep recovery, action effects and cooldowns, need-signal cooldowns, egg hatching, save migration, seeded RNG repeatability, and multi-pointer release logic. `npm run test:e2e` builds the production app and checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for horizontal overflow, care-button sizing, touch activation, settings persistence, left-handed mirroring, and desktop keyboard input. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) covers thumb comfort, haptic feel, zoom, and offline behavior that emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
+`npm run test:unit` covers clamped simulation steps, active-time decay, care effects and cooldowns, stage transitions, seeded form selection, rarity pity, stats, XP/training caps, trait effects, mini-game scoring, generation legacy, save migration, and pointer release. `npm run test:e2e` checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for overflow, care-button sizing, touch activation, settings persistence, Form Dex, memory-game training, and desktop keyboard input. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) covers thumb comfort, haptic feel, zoom, progression, and offline behavior that emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
 
 ## Original content
 

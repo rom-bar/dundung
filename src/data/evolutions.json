@@ -1,0 +1,75 @@
+{
+  "baseRarityWeights": {
+    "common": 10,
+    "uncommon": 4,
+    "rare": 1
+  },
+  "rarePityBonusPerMiss": 0.5,
+  "mutationBaseChance": 0.03,
+  "mutationChancePerMiss": 0.01,
+  "mutationChanceCap": 0.1,
+  "mutationDrawbackChance": 0.5,
+  "elementFoodBiasAtFullShare": 1.5,
+  "baseStats": {
+    "HP": 30,
+    "ATK": 8,
+    "DEF": 7,
+    "SPD": 8,
+    "LUK": 5
+  },
+  "growthPerLevel": {
+    "HP": 4,
+    "ATK": 1.2,
+    "DEF": 1.1,
+    "SPD": 1.1,
+    "LUK": 0.5
+  },
+  "elementMultipliers": {
+    "fire": { "HP": 1, "ATK": 1.12, "DEF": 0.96, "SPD": 1.04, "LUK": 1 },
+    "water": { "HP": 1.08, "ATK": 0.96, "DEF": 1, "SPD": 1, "LUK": 1.05 },
+    "moss": { "HP": 1.04, "ATK": 0.96, "DEF": 1.12, "SPD": 0.96, "LUK": 1 },
+    "storm": { "HP": 0.96, "ATK": 1.04, "DEF": 0.92, "SPD": 1.16, "LUK": 1.04 },
+    "shadow": { "HP": 0.96, "ATK": 1, "DEF": 1, "SPD": 1.04, "LUK": 1.16 }
+  },
+  "archetypeMultipliers": {
+    "tank": { "HP": 1.2, "ATK": 0.94, "DEF": 1.22, "SPD": 0.88, "LUK": 0.92 },
+    "striker": { "HP": 0.96, "ATK": 1.22, "DEF": 0.94, "SPD": 1.04, "LUK": 0.96 },
+    "trickster": { "HP": 0.9, "ATK": 0.96, "DEF": 0.9, "SPD": 1.2, "LUK": 1.2 },
+    "healer": { "HP": 1.12, "ATK": 0.9, "DEF": 1.04, "SPD": 0.96, "LUK": 1.08 }
+  },
+  "archetypes": {
+    "tank": { "sleep": 0.5, "feedQuality": 0.5 },
+    "striker": { "fight": 0.6, "training": 0.4 },
+    "trickster": { "play": 1 },
+    "healer": { "hygiene": 0.6, "sleep": 0.4 }
+  },
+  "elements": {
+    "fire": { "label": "Fire", "color": "#ef8a57", "shade": "#ad503b", "light": "#ffd095", "mark": "✦" },
+    "water": { "label": "Water", "color": "#72c4dd", "shade": "#367fa0", "light": "#c3f1ff", "mark": "◌" },
+    "moss": { "label": "Moss", "color": "#9bc978", "shade": "#4f815b", "light": "#dcf0a9", "mark": "✿" },
+    "storm": { "label": "Storm", "color": "#c3a9ef", "shade": "#705cb0", "light": "#f0dfff", "mark": "⚡" },
+    "shadow": { "label": "Shadow", "color": "#8e7bbd", "shade": "#4b3e70", "light": "#cfc2f2", "mark": "◆" }
+  },
+  "forms": [
+    { "id": "fire-emberguard", "name": "Emberguard", "element": "fire", "archetype": "tank", "rarity": "common" },
+    { "id": "fire-flarefang", "name": "Flarefang", "element": "fire", "archetype": "striker", "rarity": "uncommon" },
+    { "id": "fire-sparkwhisk", "name": "Sparkwhisk", "element": "fire", "archetype": "trickster", "rarity": "common" },
+    { "id": "fire-candlebloom", "name": "Candlebloom", "element": "fire", "archetype": "healer", "rarity": "common" },
+    { "id": "water-tidalhusk", "name": "Tidalhusk", "element": "water", "archetype": "tank", "rarity": "common" },
+    { "id": "water-rillrunner", "name": "Rillrunner", "element": "water", "archetype": "striker", "rarity": "common" },
+    { "id": "water-miragefin", "name": "Miragefin", "element": "water", "archetype": "trickster", "rarity": "uncommon" },
+    { "id": "water-dewkeeper", "name": "Dewkeeper", "element": "water", "archetype": "healer", "rarity": "rare" },
+    { "id": "moss-briarback", "name": "Briarback", "element": "moss", "archetype": "tank", "rarity": "uncommon" },
+    { "id": "moss-rootbreaker", "name": "Rootbreaker", "element": "moss", "archetype": "striker", "rarity": "common" },
+    { "id": "moss-fernflip", "name": "Fernflip", "element": "moss", "archetype": "trickster", "rarity": "common" },
+    { "id": "moss-mossmender", "name": "Mossmender", "element": "moss", "archetype": "healer", "rarity": "common" },
+    { "id": "storm-cloudwall", "name": "Cloudwall", "element": "storm", "archetype": "tank", "rarity": "common" },
+    { "id": "storm-thunderkip", "name": "Thunderkip", "element": "storm", "archetype": "striker", "rarity": "uncommon" },
+    { "id": "storm-staticwhirl", "name": "Staticwhirl", "element": "storm", "archetype": "trickster", "rarity": "common" },
+    { "id": "storm-skysinger", "name": "Skysinger", "element": "storm", "archetype": "healer", "rarity": "rare" },
+    { "id": "shadow-duskplate", "name": "Duskplate", "element": "shadow", "archetype": "tank", "rarity": "common" },
+    { "id": "shadow-nightneedle", "name": "Nightneedle", "element": "shadow", "archetype": "striker", "rarity": "common" },
+    { "id": "shadow-shadewink", "name": "Shadewink", "element": "shadow", "archetype": "trickster", "rarity": "uncommon" },
+    { "id": "shadow-gloomglow", "name": "Gloomglow", "element": "shadow", "archetype": "healer", "rarity": "uncommon" }
+  ]
+}

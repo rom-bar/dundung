@@ -1,71 +1,57 @@
 {
-  "schemaVersion": 1,
-  "simulation": {
-    "maxStepMs": 100,
-    "snapshotIntervalMs": 250,
-    "autosaveSeconds": 10
-  },
+  "schemaVersion": 2,
+  "simulation": { "maxStepMs": 100, "snapshotIntervalMs": 250, "autosaveSeconds": 10 },
   "needs": {
     "minimum": 0,
     "maximum": 100,
     "signalThreshold": 30,
     "unhappyThreshold": 0,
-    "signalCooldownSeconds": {
-      "hunger": 30,
-      "happiness": 30,
-      "energy": 30,
-      "hygiene": 30
-    },
-    "starting": {
-      "hunger": 82,
-      "happiness": 86,
-      "energy": 84,
-      "hygiene": 90
-    },
+    "signalCooldownSeconds": { "hunger": 30, "happiness": 30, "energy": 30, "hygiene": 30 },
+    "starting": { "hunger": 82, "happiness": 86, "energy": 84, "hygiene": 90 },
     "decayPerMinute": {
-      "awake": {
-        "hunger": 3,
-        "happiness": 2,
-        "energy": 2,
-        "hygiene": 1.5
-      },
-      "sleeping": {
-        "hunger": 1.5,
-        "happiness": 0,
-        "energy": -8,
-        "hygiene": 0
-      }
+      "awake": { "hunger": 3, "happiness": 2, "energy": 2, "hygiene": 1.5 },
+      "sleeping": { "hunger": 1.5, "happiness": 0, "energy": -8, "hygiene": 0 }
     }
   },
   "lifeStages": {
-    "eggMinutes": 1,
-    "babyMinutes": 15
+    "stageMinutes": { "egg": 1, "baby": 15, "teen": 45, "adult": 120, "elder": 60 },
+    "levelCaps": { "baby": 5, "teen": 15, "adult": 40, "elder": 40 },
+    "elderStatDeclinePercentPerMinute": 1,
+    "elderStatFloorMultiplier": 0.5
   },
-  "actionCooldownSeconds": {
-    "feed": 2,
-    "play": 2,
-    "clean": 2,
-    "sleep": 2
-  },
-  "actionEffects": {
-    "play": {
-      "happiness": 18,
-      "energy": -8,
-      "hygiene": -1
+  "progression": {
+    "xpBase": 20,
+    "xpGrowth": 1.18,
+    "trainingCapPerLevel": 2,
+    "miniGameCooldownSeconds": 45,
+    "xpRewards": { "feed": 2, "play": 3, "clean": 2, "sleep": 1, "miniGame": 8 },
+    "miniGameScoreThresholds": [25, 55, 85],
+    "miniGameTrainingPointsByBand": [1, 2, 3],
+    "miniGameMaximumScore": 100,
+    "tendencyEmaAlpha": 0.02,
+    "tendencySignals": {
+      "default": 1,
+      "play": 1,
+      "sleep": 1,
+      "fight": 1,
+      "training": 1,
+      "hygiene": 1,
+      "feedComfort": 1,
+      "feedOther": 0.65
     },
-    "clean": {
-      "hygiene": 30
-    }
+    "miniGames": {
+      "reaction": { "rounds": 8, "readyDelayMs": 1800, "signalWindowMs": 2000, "betweenRoundsMs": 500, "latencyGraceMs": 100, "scorePenaltyPerMs": 0.16 },
+      "memory": { "symbols": ["●", "◆", "✦", "◉"], "sequence": [0, 2, 1, 3, 0, 1, 2, 3, 1, 0], "introDelayMs": 500, "symbolOnMs": 900, "symbolGapMs": 400 },
+      "rhythm": { "beats": 20, "intervalMs": 900, "startDelayMs": 500, "toleranceMs": 250 }
+    },
+    "legacyBaseStatBonus": 0.05,
+    "hallOfPetsLimit": 50
   },
-  "animationSeconds": {
-    "eat": 1.2,
-    "play": 1.6,
-    "clean": 1.1,
-    "sleep": 1.4,
-    "wake": 1.1
+  "actionCooldownSeconds": { "feed": 2, "play": 2, "clean": 2, "sleep": 2 },
+  "actionEffects": {
+    "play": { "happiness": 18, "energy": -8, "hygiene": -1 },
+    "clean": { "hygiene": 30 }
   },
-  "notifications": {
-    "toastDurationSeconds": 2.8,
-    "maximumQueueLength": 6
-  }
+  "animationSeconds": { "eat": 1.2, "play": 1.6, "clean": 1.1, "sleep": 1.4, "wake": 1.1, "evolve": 2.4 },
+  "notifications": { "toastDurationSeconds": 2.8, "maximumQueueLength": 6 }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { advance, advanceWithSignals, applyAction, createInitialState, getMood } from '../src/core/game';
 import { migrateSave } from '../src/core/save';
 import { mulberry32 } from '../src/core/rng';
+import rules from '../src/data/rules.json';
 
 function runFor(state: ReturnType<typeof createInitialState>, seconds: number) {
   let next = state;
@@ -84,6 +85,34 @@ describe('care-loop simulation', () => {
     const hatched = runFor(createInitialState(9), 60);
     expect(hatched.stage).toBe('baby');
     expect(hatched.activeSeconds).toBeCloseTo(60, 5);
+    expect(hatched.evolution.formId).not.toBeNull();
+    expect(hatched.tendencies.play).toBe(0);
+  });
+
+  it('completes every life stage and records the elder before starting a new egg', () => {
+    let state = createInitialState(31);
+    const transitions = [
+      ['baby', 'teen'],
+      ['teen', 'adult'],
+      ['adult', 'elder'],
+      ['elder', 'egg'],
+    ] as const;
+    for (const [from, to] of transitions) {
+      state = {
+        ...state,
+        stage: from,
+        stageSeconds: rules.lifeStages.stageMinutes[from] * 60 - 0.1,
+        tendencies: { ...state.tendencies, play: 0.8 },
+      };
+      state = advance(state, 100);
+      expect(state.stage).toBe(to);
+      expect(state.tendencies.play).toBe(0);
+      if (to !== 'egg') expect(state.evolution.formId).not.toBeNull();
+    }
+    expect(state.generation).toBe(2);
+    expect(state.hallOfPets).toHaveLength(1);
+    expect(state.hallOfPets[0]?.name).not.toBe('Pip');
+    expect(state.evolution.baseStatBonus).toBeCloseTo(rules.progression.legacyBaseStatBonus);
   });
 
   it('clamps needs and reflects an empty need in the mood', () => {
@@ -107,11 +136,34 @@ describe('save migration and seeded randomness', () => {
 
   it('migrates a schema-less save and repairs invalid need values', () => {
     const restored = migrateSave({ stage: 'baby', needs: { hunger: 200, happiness: 'lots' } });
-    expect(restored.schemaVersion).toBe(1);
+    expect(restored.schemaVersion).toBe(2);
     expect(restored.stage).toBe('baby');
     expect(restored.needs.hunger).toBe(100);
     expect(restored.needs.happiness).toBe(86);
     expect(restored.paused).toBe(true);
+  });
+
+  it('migrates a Phase 2 save, backfills generation time, and clamps progression fields', () => {
+    const restored = migrateSave({
+      schemaVersion: 1,
+      stage: 'baby',
+      activeSeconds: 123,
+      stageSeconds: 9_999_999,
+      cooldowns: { feed: 9_999 },
+      training: { ATK: 9_999 },
+      miniGameCooldownSeconds: 99_999,
+      tendencies: { play: 0.75 },
+      hallOfPets: [{ generation: 2, name: '<img src=x onerror=alert(1)>', formId: 'fire-emberguard', peakLevel: 999 }],
+    });
+    expect(restored.schemaVersion).toBe(2);
+    expect(restored.generationSeconds).toBe(123);
+    expect(restored.stageSeconds).toBe(rules.lifeStages.stageMinutes.baby * 60);
+    expect(restored.cooldowns.feed).toBe(rules.actionCooldownSeconds.feed);
+    expect(restored.training.ATK).toBe(rules.progression.trainingCapPerLevel);
+    expect(restored.miniGameCooldownSeconds).toBe(rules.progression.miniGameCooldownSeconds);
+    expect(restored.tendencies.training).toBe(0);
+    expect(restored.hallOfPets[0]?.name).toBe('Emberguard');
+    expect(restored.hallOfPets[0]?.peakLevel).toBe(40);
   });
 
   it('refuses to open a save from a future schema version', () => {

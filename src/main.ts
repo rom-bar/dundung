@@ -1,13 +1,15 @@
 import rules from './data/rules.json';
 import foods from './data/foods.json';
 import { createInitialState, getMood, getNeedSignals } from './core/game';
-import type { GameAction, GameState, NeedKey, WorkerOutMessage } from './core/types';
+import type { GameAction, GameState, NeedKey, StatKey, WorkerOutMessage } from './core/types';
 import { drawPetScene } from './render/sprite';
 import { playSound, type SoundKind } from './platform/audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
 import { attachTouchControls } from './platform/touch-controls';
 import { createMiniMode } from './platform/mini-mode';
+import { getAllForms, getEffectiveStats, getFormDefinition, getLevelCap, getTraitList, xpToNextLevel } from './core/progression';
+import evolutions from './data/evolutions.json';
 import './style.css';
 
 const root = document.querySelector<HTMLDivElement>('#app');
@@ -25,6 +27,7 @@ const needCopy: Record<NeedKey, string> = {
   energy: 'Pip looks ready for a rest.',
   hygiene: 'A quick clean would feel nice.',
 };
+const statLabels: Record<StatKey, string> = { HP: 'Health', ATK: 'Attack', DEF: 'Defense', SPD: 'Speed', LUK: 'Luck' };
 const actionAnimations: Record<string, SoundKind> = {
   feed: 'eat',
   play: 'play',
@@ -64,6 +67,9 @@ root.innerHTML = `
       <div class="topbar-actions">
         <button class="quiet-button" id="mini-mode-button" type="button" aria-label="Open mini mode" title="Open mini mode">
           <span class="button-icon" aria-hidden="true">▣</span><span>Mini</span>
+        </button>
+        <button class="quiet-button" id="forms-open" type="button" aria-haspopup="dialog" aria-controls="dex-dialog" data-testid="forms-open">
+          <span class="button-icon" aria-hidden="true">✧</span><span>Forms</span>
         </button>
         <button class="quiet-button" id="settings-open" type="button" aria-haspopup="dialog" aria-controls="settings-dialog" data-testid="settings-open">
           <span class="button-icon" aria-hidden="true">⚙</span><span>Settings</span>
@@ -107,6 +113,14 @@ root.innerHTML = `
             <span class="mood-chip" id="mood-chip">Settled</span>
           </div>
           <div class="need-list" id="need-list" aria-label="Pip's needs"></div>
+          <section class="growth-summary" aria-label="Growth and training">
+            <div class="growth-heading"><span>Level <strong id="level-value">1</strong></span><span id="xp-copy">0 XP</span></div>
+            <div class="xp-track" role="progressbar" aria-label="Experience to next level" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0" id="xp-meter"><span id="xp-fill"></span></div>
+            <div class="stat-list" id="stat-list" aria-label="Current stats"></div>
+            <p class="tendency-summary" id="tendency-summary">Care shapes the next form.</p>
+            <p class="trait-summary" id="trait-summary"></p>
+            <button class="quiet-button training-open" id="minigames-open" type="button" aria-haspopup="dialog" aria-controls="minigame-dialog" data-testid="minigames-open" disabled>Play a training game</button>
+          </section>
           <div class="signal-note" id="signal-note" role="status" aria-live="polite">
             <span class="signal-star" aria-hidden="true">✦</span>
             <span id="signal-copy">Pip is happy to have you here.</span>
@@ -194,6 +208,32 @@ root.innerHTML = `
         </div>
       </div>
     </dialog>
+    <dialog class="settings-dialog dex-dialog" id="dex-dialog" aria-labelledby="dex-title">
+      <div class="settings-heading">
+        <div><p class="eyebrow">A field guide to Pip's family</p><h2 id="dex-title">Form Dex</h2></div>
+        <button class="dialog-close" id="dex-close" type="button" aria-label="Close Form Dex">×</button>
+      </div>
+      <p class="settings-intro" id="dex-progress">0 of 20 forms found · scroll to explore</p>
+      <button class="quiet-button stone-button" id="evolution-stone" type="button" hidden>Use Evolution Stone</button>
+      <div class="form-grid" id="form-grid" role="region" tabindex="0" aria-label="Form collection; scroll to browse all forms"></div>
+      <section class="hall-section" aria-labelledby="hall-title"><h3 id="hall-title">Hall of Pets</h3><div id="hall-list"></div></section>
+    </dialog>
+    <dialog class="settings-dialog minigame-dialog" id="minigame-dialog" aria-labelledby="minigame-title">
+      <div class="settings-heading">
+        <div><p class="eyebrow">A little practice goes a long way</p><h2 id="minigame-title">Training games</h2></div>
+        <button class="dialog-close" id="minigame-close" type="button" aria-label="Close training games">×</button>
+      </div>
+      <p class="settings-intro" id="minigame-status">Choose a game. A good score gives up to 3 training points.</p>
+      <label class="settings-field" for="training-stat">Train a stat
+        <select id="training-stat"><option value="HP">HP</option><option value="ATK">ATK</option><option value="DEF">DEF</option><option value="SPD">SPD</option><option value="LUK">LUK</option></select>
+      </label>
+      <div class="minigame-choices" id="minigame-choices">
+        <button class="game-choice" type="button" data-game="reaction"><strong>Quick Spark</strong><span>Tap when the light wakes.</span></button>
+        <button class="game-choice" type="button" data-game="memory"><strong>Echo Garden</strong><span>Remember a short symbol trail.</span></button>
+        <button class="game-choice" type="button" data-game="rhythm"><strong>Beat Bubbles</strong><span>Tap along with a gentle pulse.</span></button>
+      </div>
+      <div id="minigame-stage" class="minigame-stage" hidden></div>
+    </dialog>
   </div>
 `;
 
@@ -211,6 +251,17 @@ const leftHandedInput = must<HTMLInputElement>('#left-handed');
 const hapticsInput = must<HTMLInputElement>('#haptics-toggle');
 const controlOpacityInput = must<HTMLInputElement>('#control-opacity');
 const controlOpacityValue = must<HTMLOutputElement>('#control-opacity-value');
+const dexDialog = must<HTMLDialogElement>('#dex-dialog');
+const minigameDialog = must<HTMLDialogElement>('#minigame-dialog');
+const minigameStatus = must<HTMLParagraphElement>('#minigame-status');
+const minigameChoices = must<HTMLDivElement>('#minigame-choices');
+const minigameStage = must<HTMLDivElement>('#minigame-stage');
+const trainingStatInput = must<HTMLSelectElement>('#training-stat');
+const formGrid = must<HTMLDivElement>('#form-grid');
+const hallList = must<HTMLDivElement>('#hall-list');
+const evolutionStoneButton = must<HTMLButtonElement>('#evolution-stone');
+const miniGameTimers = new Set<number>();
+let miniGameInput: ((button: HTMLButtonElement) => void) | null = null;
 installButton = must<HTMLButtonElement>('#install-app');
 const miniModeButton = must<HTMLButtonElement>('#mini-mode-button');
 const miniMode = createMiniMode({
@@ -308,6 +359,66 @@ function renderNeedList(): void {
   `).join('');
 }
 
+function renderGrowthSummary(current: GameState): void {
+  const stats = getEffectiveStats(current);
+  const cap = getLevelCap(current.stage);
+  const xpTarget = current.level >= cap ? 0 : xpToNextLevel(current.level);
+  const xpFill = must<HTMLSpanElement>('#xp-fill');
+  const xpMeter = must<HTMLDivElement>('#xp-meter');
+  const xpPercent = xpTarget > 0 ? Math.min(100, Math.round((current.xp / xpTarget) * 100)) : 100;
+  must<HTMLSpanElement>('#level-value').textContent = String(current.level);
+  must<HTMLSpanElement>('#xp-copy').textContent = current.level >= cap ? `Stage cap · Lv ${cap}` : `${current.xp} / ${xpTarget} XP`;
+  xpFill.style.width = `${xpPercent}%`;
+  xpMeter.setAttribute('aria-valuemax', String(Math.max(1, xpTarget)));
+  xpMeter.setAttribute('aria-valuenow', String(Math.min(current.xp, xpTarget)));
+  must<HTMLDivElement>('#stat-list').innerHTML = (Object.keys(statLabels) as StatKey[]).map((key) => `
+    <div class="stat-chip" role="group" aria-label="${statLabels[key]}: ${stats[key]}${current.training[key] ? `, ${current.training[key]} trained points` : ''}" title="${statLabels[key]}${current.training[key] ? ` · +${current.training[key]} trained` : ''}">
+      <strong>${key}</strong><span>${stats[key]}</span>
+    </div>
+  `).join('');
+  const tendencies = current.tendencies;
+  const preference = [
+    ['play', 'play'], ['sleep', 'rest'], ['fight', 'fight'], ['training', 'training'], ['feedQuality', 'food'], ['hygiene', 'clean'],
+  ] as const;
+  const topSignals = [...preference]
+    .sort((left, right) => tendencies[right[0]] - tendencies[left[0]])
+    .slice(0, 2)
+    .filter(([key]) => tendencies[key] > 0.02)
+    .map(([, label]) => label);
+  must<HTMLParagraphElement>('#tendency-summary').textContent = topSignals.length
+    ? `This stage leans toward ${topSignals.join(' and ')}.`
+    : 'Care this stage shapes the next form.';
+  const activeTraits = getTraitList(current);
+  const traitSummary = must<HTMLParagraphElement>('#trait-summary');
+  traitSummary.textContent = activeTraits.length ? `Traits: ${activeTraits.map((trait) => trait.name).join(', ')}` : '';
+  traitSummary.hidden = activeTraits.length === 0;
+}
+
+function renderFormDex(current: GameState): void {
+  const forms = getAllForms();
+  const discovered = new Set(current.formDex);
+  must<HTMLParagraphElement>('#dex-progress').textContent = `${discovered.size} of ${forms.length} forms found · scroll to explore`;
+  formGrid.innerHTML = forms.map((form) => {
+    if (!discovered.has(form.id)) {
+      return '<div class="form-card is-unknown" aria-label="Undiscovered form"><span class="form-mark" aria-hidden="true">?</span><strong>Unknown form</strong><small>Silhouette</small></div>';
+    }
+    const palette = evolutions.elements[form.element];
+    return `<div class="form-card" data-rarity="${form.rarity}" aria-label="${form.name}, ${palette.label} ${form.archetype}">
+      <span class="form-mark" aria-hidden="true" style="color:${palette.color}">${palette.mark}</span>
+      <strong>${form.name}</strong><small>${palette.label} · ${form.archetype}</small>
+    </div>`;
+  }).join('');
+  hallList.innerHTML = current.hallOfPets.length
+    ? current.hallOfPets.map((pet) => {
+      const form = getFormDefinition(pet.formId);
+      return `<div class="hall-entry"><strong>${pet.name}</strong> · Generation ${pet.generation} · ${form?.name ?? 'Unformed'} · peak Lv ${pet.peakLevel}</div>`;
+    }).join('')
+    : '<p class="hall-empty">Past pets will find a place here after their long life.</p>';
+  evolutionStoneButton.hidden = current.evolution.evolutionStones < 1 || !current.evolution.formId;
+  evolutionStoneButton.disabled = current.paused;
+  evolutionStoneButton.textContent = `Use Evolution Stone (${current.evolution.evolutionStones})`;
+}
+
 function renderFoodActions(): void {
   const grid = must<HTMLDivElement>('#food-actions');
   const marks: Record<string, string> = {
@@ -348,6 +459,171 @@ function showNextToast(): void {
   }, rules.notifications.toastDurationSeconds * 1000);
 }
 
+type MiniGameKind = 'reaction' | 'memory' | 'rhythm';
+
+function clearMiniGameTimers(): void {
+  miniGameTimers.forEach((timer) => {
+    window.clearTimeout(timer);
+    window.clearInterval(timer);
+  });
+  miniGameTimers.clear();
+}
+
+function scheduleMiniGame(callback: () => void, delayMs: number): void {
+  const timer = window.setTimeout(() => {
+    miniGameTimers.delete(timer);
+    callback();
+  }, delayMs);
+  miniGameTimers.add(timer);
+}
+
+function finishMiniGame(score: number): void {
+  clearMiniGameTimers();
+  miniGameInput = null;
+  const boundedScore = Math.round(Math.max(0, Math.min(rules.progression.miniGameMaximumScore, score)));
+  minigameStage.innerHTML = `<p class="game-prompt">Game complete · ${boundedScore}/100</p><button class="game-pad" id="minigame-again" type="button">Choose a game</button>`;
+  minigameStatus.textContent = 'Your score is ready. Training points are limited by each level.';
+  sendAction({ type: 'mini-game-complete', stat: trainingStatInput.value as StatKey, score: boundedScore });
+}
+
+function startMiniGame(kind: MiniGameKind): void {
+  if (!state || state.paused || state.sleeping || state.stage === 'egg' || state.miniGameCooldownSeconds > 0) return;
+  clearMiniGameTimers();
+  minigameChoices.hidden = true;
+  minigameStage.hidden = false;
+  if (kind === 'reaction') startReactionGame();
+  else if (kind === 'memory') startMemoryGame();
+  else startRhythmGame();
+}
+
+function startReactionGame(): void {
+  const config = rules.progression.miniGames.reaction;
+  const roundScores: number[] = [];
+  let armed = false;
+  let signalOn = false;
+  let roundDone = false;
+  let signalAt = 0;
+
+  const showRound = () => {
+    armed = false;
+    signalOn = false;
+    roundDone = false;
+    minigameStage.innerHTML = `<p class="game-prompt">Quick Spark · Round ${roundScores.length + 1} of ${config.rounds}</p><p class="game-prompt" id="reaction-prompt">Tap to get ready.</p><button class="game-pad" id="reaction-pad" type="button">Ready</button>`;
+  };
+  const completeRound = (score: number) => {
+    if (roundDone) return;
+    roundDone = true;
+    clearMiniGameTimers();
+    roundScores.push(score);
+    if (roundScores.length >= config.rounds) {
+      finishMiniGame(roundScores.reduce((sum, value) => sum + value, 0) / roundScores.length);
+    } else {
+      scheduleMiniGame(showRound, config.betweenRoundsMs);
+    }
+  };
+  showRound();
+  miniGameInput = (button) => {
+    if (button.id !== 'reaction-pad' || roundDone) return;
+    const prompt = must<HTMLParagraphElement>('#reaction-prompt');
+    if (!armed) {
+      armed = true;
+      button.disabled = true;
+      button.textContent = 'Wait for the spark…';
+      prompt.textContent = 'Not yet — watch closely.';
+      scheduleMiniGame(() => {
+        if (roundDone) return;
+        signalOn = true;
+        signalAt = performance.now();
+        prompt.textContent = 'Tap now!';
+        prompt.classList.add('is-ready');
+        button.disabled = false;
+        button.textContent = 'Tap!';
+        scheduleMiniGame(() => completeRound(0), config.signalWindowMs);
+      }, config.readyDelayMs);
+      return;
+    }
+    if (!signalOn) {
+      prompt.textContent = 'Too early — steady paws!';
+      completeRound(0);
+      return;
+    }
+    const reactionMs = performance.now() - signalAt;
+    completeRound(Math.max(0, rules.progression.miniGameMaximumScore
+      - Math.max(0, reactionMs - config.latencyGraceMs) * config.scorePenaltyPerMs));
+  };
+}
+
+function startMemoryGame(): void {
+  const config = rules.progression.miniGames.memory;
+  const symbols = config.symbols;
+  const sequence = config.sequence;
+  let position = 0;
+  let correct = 0;
+  let accepting = false;
+  const renderPads = () => {
+    minigameStage.innerHTML = `<p class="game-prompt" id="memory-prompt">Watch the trail…</p><div class="memory-grid">${symbols.map((symbol, index) => `<button class="memory-pad" type="button" data-memory-index="${index}" aria-label="Symbol ${index + 1}" disabled>${symbol}</button>`).join('')}</div>`;
+  };
+  renderPads();
+  const showStep = (index: number) => {
+    if (index >= sequence.length) {
+      accepting = true;
+      minigameStage.querySelectorAll<HTMLButtonElement>('.memory-pad').forEach((pad) => { pad.disabled = false; });
+      must<HTMLParagraphElement>('#memory-prompt').textContent = `Now repeat the ${sequence.length}-symbol trail.`;
+      return;
+    }
+    const pad = minigameStage.querySelector<HTMLButtonElement>(`[data-memory-index="${sequence[index]}"]`);
+    pad?.classList.add('is-lit');
+    scheduleMiniGame(() => {
+      pad?.classList.remove('is-lit');
+      scheduleMiniGame(() => showStep(index + 1), config.symbolGapMs);
+    }, config.symbolOnMs);
+  };
+  scheduleMiniGame(() => showStep(0), config.introDelayMs);
+  miniGameInput = (button) => {
+    if (!accepting || button.dataset.memoryIndex === undefined || position >= sequence.length) return;
+    if (Number(button.dataset.memoryIndex) === sequence[position]) correct += 1;
+    position += 1;
+    must<HTMLParagraphElement>('#memory-prompt').textContent = `Trail ${position} of ${sequence.length}`;
+    if (position === sequence.length) finishMiniGame((correct / sequence.length) * rules.progression.miniGameMaximumScore);
+  };
+}
+
+function startRhythmGame(): void {
+  const config = rules.progression.miniGames.rhythm;
+  const beatCount = config.beats;
+  let beat = -1;
+  let expectedAt = 0;
+  let scoredThisBeat = false;
+  let hits = 0;
+  minigameStage.innerHTML = `<p class="game-prompt" id="rhythm-prompt">Tap the button on each glowing beat.</p><div class="rhythm-row" aria-hidden="true">${Array.from({ length: beatCount }, () => '<span class="rhythm-beat"></span>').join('')}</div><button class="game-pad" id="rhythm-pad" type="button">Tap with the beat</button>`;
+  const pulse = () => {
+    beat += 1;
+    if (beat >= beatCount) {
+      finishMiniGame((hits / beatCount) * rules.progression.miniGameMaximumScore);
+      return;
+    }
+    expectedAt = performance.now();
+    scoredThisBeat = false;
+    const dot = minigameStage.querySelectorAll<HTMLElement>('.rhythm-beat')[beat];
+    dot?.classList.add('is-lit');
+    scheduleMiniGame(() => dot?.classList.remove('is-lit'), 220);
+    must<HTMLParagraphElement>('#rhythm-prompt').textContent = `Beat ${beat + 1} of ${beatCount} · tap in time.`;
+  };
+  scheduleMiniGame(() => {
+    pulse();
+    const interval = window.setInterval(pulse, config.intervalMs);
+    miniGameTimers.add(interval);
+  }, config.startDelayMs);
+  miniGameInput = (button) => {
+    if (button.id !== 'rhythm-pad' || beat < 0 || beat >= beatCount || scoredThisBeat) return;
+    if (Math.abs(performance.now() - expectedAt) <= config.toleranceMs) {
+      hits += 1;
+      scoredThisBeat = true;
+      must<HTMLParagraphElement>('#rhythm-prompt').textContent = `Nice timing · ${hits} hit${hits === 1 ? '' : 's'}.`;
+    }
+  };
+}
+
 function formatClock(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
@@ -383,11 +659,15 @@ function updateControls(current: GameState): void {
   must<HTMLSpanElement>('#sleep-label').textContent = current.sleeping ? 'Wake up' : 'Tuck in';
   must<HTMLSpanElement>('#sleep-detail').textContent = current.sleeping ? 'Say hello again' : 'Rest a little';
   must<HTMLButtonElement>('[data-action="toggle-sleep"]').setAttribute('aria-label', current.sleeping ? 'Wake Pip' : 'Tuck Pip in');
-  must<HTMLSpanElement>('#stage-pill').textContent = current.stage === 'egg' ? 'Egg' : 'Baby';
+  const stageNames = { egg: 'Egg', baby: 'Baby', teen: 'Teen', adult: 'Adult', elder: 'Elder' };
+  const nextStageNames = { egg: 'hatching', baby: 'a teen', teen: 'an adult', adult: 'an elder', elder: 'a new egg' };
+  const remaining = formatClock(Math.max(0, rules.lifeStages.stageMinutes[current.stage] * 60 - current.stageSeconds));
+  const form = getFormDefinition(current.evolution.formId);
+  must<HTMLSpanElement>('#stage-pill').textContent = stageNames[current.stage];
   must<HTMLSpanElement>('#stage-detail').textContent = current.stage === 'egg'
-    ? `Hatching in ${formatClock(Math.max(0, rules.lifeStages.eggMinutes * 60 - current.stageSeconds))}`
-    : 'A new little friend is here.';
-  must<HTMLHeadingElement>('#pet-heading').textContent = current.stage === 'egg' ? 'A quiet place to grow' : 'Hello, little friend';
+    ? `Hatching in ${remaining}`
+    : `Growing into ${nextStageNames[current.stage]} in ${remaining}`;
+  must<HTMLHeadingElement>('#pet-heading').textContent = form?.name ?? (current.stage === 'egg' ? 'A quiet place to grow' : 'Hello, little friend');
   must<HTMLSpanElement>('#active-clock').textContent = `${Math.floor(current.activeSeconds / 60)} min together`;
 
   const mood = getMood(current);
@@ -414,6 +694,23 @@ function updateControls(current: GameState): void {
     meter.parentElement?.classList.toggle('is-low', value < rules.needs.signalThreshold);
     meter.parentElement?.classList.toggle('is-empty', value <= rules.needs.unhappyThreshold);
   });
+
+  renderGrowthSummary(current);
+  const miniGameButton = must<HTMLButtonElement>('#minigames-open');
+  const waitingForHatch = current.stage === 'egg';
+  const trainingCooling = current.miniGameCooldownSeconds > 0;
+  miniGameButton.disabled = current.paused || current.sleeping || waitingForHatch || trainingCooling;
+  minigameChoices.querySelectorAll<HTMLButtonElement>('[data-game]').forEach((button) => {
+    button.disabled = current.paused || current.sleeping || waitingForHatch || trainingCooling;
+  });
+  minigameStatus.textContent = waitingForHatch
+    ? 'Training games open after Pip hatches.'
+    : current.sleeping
+      ? 'Wake Pip to start a training game.'
+      : trainingCooling
+        ? `Training games need a breather for ${Math.ceil(current.miniGameCooldownSeconds)}s.`
+        : 'Choose a game. A good score gives up to 3 training points.';
+  if (dexDialog.open) renderFormDex(current);
 
   overlay.hidden = !current.paused;
   if (current.paused) must<HTMLButtonElement>('#resume-button').focus({ preventScroll: true });
@@ -456,9 +753,17 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
   const message = event.data;
   if (message.type === 'snapshot') {
     const previousStage = state?.stage;
+    const previousForm = state?.evolution.formId;
+    const previousGeneration = state?.generation;
     state = message.state;
     updateControls(state);
-    if (previousStage === 'egg' && state.stage === 'baby') showToast('Pip hatched into a little friend!');
+    if (previousGeneration !== undefined && state.generation > previousGeneration) {
+      showToast('A new egg has begun the next little story.');
+    } else if (previousStage === 'egg' && state.stage === 'baby') {
+      showToast(`Pip hatched as ${getFormDefinition(state.evolution.formId)?.name ?? 'a new friend'}!`);
+    } else if (previousForm && state.evolution.formId && previousForm !== state.evolution.formId) {
+      showToast(`Pip grew into ${getFormDefinition(state.evolution.formId)?.name ?? 'a new form'}.`);
+    }
   } else if (message.type === 'action-result') {
     showToast(message.result.message);
     miniMode.setMessage(message.result.message);
@@ -550,6 +855,26 @@ root.addEventListener('click', (event) => {
       if (opened) return;
       showToast(state?.paused ? 'Continue with Pip before opening mini mode.' : 'Mini mode could not open here.');
     });
+  } else if (button.id === 'forms-open') {
+    if (state) renderFormDex(state);
+    dexDialog.showModal();
+  } else if (button.id === 'dex-close') {
+    dexDialog.close();
+  } else if (button.id === 'evolution-stone') {
+    sendAction({ type: 'use-evolution-stone' });
+  } else if (button.id === 'minigames-open') {
+    if (state) updateControls(state);
+    minigameChoices.hidden = false;
+    minigameStage.hidden = true;
+    minigameDialog.showModal();
+  } else if (button.id === 'minigame-close') {
+    minigameDialog.close();
+  } else if (button.dataset.game) {
+    startMiniGame(button.dataset.game as MiniGameKind);
+  } else if (button.id === 'minigame-again') {
+    minigameStage.hidden = true;
+    minigameChoices.hidden = false;
+    if (state) updateControls(state);
   } else if (button.id === 'resume-button') {
     state = state ? { ...state, paused: false } : state;
     worker.postMessage({ type: 'resume' });
@@ -561,6 +886,23 @@ root.addEventListener('click', (event) => {
   } else if (button.id === 'about-close') {
     aboutDialog.close();
   }
+});
+
+minigameStage.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  if (button) miniGameInput?.(button);
+});
+minigameDialog.addEventListener('close', () => {
+  clearMiniGameTimers();
+  miniGameInput = null;
+  minigameStage.hidden = true;
+  minigameChoices.hidden = false;
+});
+minigameDialog.addEventListener('click', (event) => {
+  if (event.target === minigameDialog) minigameDialog.close();
+});
+dexDialog.addEventListener('click', (event) => {
+  if (event.target === dexDialog) dexDialog.close();
 });
 
 aboutDialog.addEventListener('click', (event) => {
@@ -583,7 +925,7 @@ function syncAboutRoute(): void {
 }
 
 window.addEventListener('keydown', (event) => {
-  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open || settingsDialog.open) return;
+  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open || settingsDialog.open || dexDialog.open || minigameDialog.open) return;
   const target = event.target as HTMLElement;
   if (target.matches('input, textarea, select, [contenteditable="true"]')) return;
   const key = event.key.toLowerCase();
