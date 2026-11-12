@@ -8,7 +8,7 @@ A tiny, original virtual pet. Care for Pip in short moments; when you leave, the
 
 Open the live site once while online, then Pocket Pal can load offline from the same browser. Feed Pip one of three snacks, play, tuck Pip in or wake them, and clean up. The four needs change only during active play. If the page is hidden, closed, or loses focus, the game pauses and saves; returning never applies time away.
 
-Use the buttons or keyboard shortcuts: **1–3** offer the three snacks, **P** plays, **S** toggles sleep, and **C** cleans. Sound and CRT scanlines can be toggled in the header. The small hash router uses `#/` for the home screen and `#/about` for the About page, which explains the original-content policy.
+Use the care buttons or keyboard shortcuts: **1–3** offer the three snacks, **P** plays, **S** toggles sleep, and **C** cleans. On portrait phones, the care buttons stick to the bottom when the care section is in view. Open **Settings** to switch Sound or CRT scanlines, choose button size and opacity, mirror the care controls for a left-handed layout, or enable a short touch haptic. These preferences stay on this device. Buttons act once per press; holding them never repeats a care action. The small hash router uses `#/` for the home screen and `#/about` for the About page, which explains the original-content policy.
 
 ## Run locally
 
@@ -24,6 +24,7 @@ Vite prints a local URL. For a production-like check:
 ```sh
 npm run check
 npm test
+npm run test:e2e
 npm run build
 npm run preview
 ```
@@ -56,7 +57,7 @@ Mini mode is a **Phase 2** feature and is not available in this release. The mat
 
 ## Tests and acceptance checks
 
-`npm test` covers clamped simulation steps, active-time decay, sleep recovery, action effects and cooldowns, need-signal cooldowns, egg hatching, save migration, and seeded RNG repeatability. The production build also creates a service worker that precaches the generated files under the registered repository subpath. Manual checks: open on a 360 px phone layout, install from a supported browser prompt, go offline after the first visit, close and reopen to verify the saved pet is paused.
+`npm run test:unit` covers clamped simulation steps, active-time decay, sleep recovery, action effects and cooldowns, need-signal cooldowns, egg hatching, save migration, seeded RNG repeatability, and multi-pointer release logic. `npm run test:e2e` builds the production app and checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for horizontal overflow, care-button sizing, touch activation, settings persistence, left-handed mirroring, and desktop keyboard input. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) covers thumb comfort, haptic feel, zoom, and offline behavior that emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
 
 ## Original content
 

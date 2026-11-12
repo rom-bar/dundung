@@ -6,6 +6,7 @@ import { drawPetScene } from './render/sprite';
 import { playSound, type SoundKind } from './platform/audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
+import { attachTouchControls } from './platform/touch-controls';
 import './style.css';
 
 const root = document.querySelector<HTMLDivElement>('#app');
@@ -31,6 +32,12 @@ const actionAnimations: Record<string, SoundKind> = {
 };
 const storedMute = readSetting('pocket-pal-muted', false);
 const storedCrt = readSetting('pocket-pal-crt', false);
+const controlSizes = ['small', 'medium', 'large'] as const;
+type ControlSize = (typeof controlSizes)[number];
+let controlSize = readControlSize();
+let leftHanded = readSetting('pocket-pal-left-handed', false);
+let hapticsOn = readSetting('pocket-pal-haptics', false);
+let controlOpacity = readControlOpacity();
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const worker = new Worker(new URL('./core/worker.ts', import.meta.url), { type: 'module' });
 
@@ -54,11 +61,8 @@ root.innerHTML = `
         <span class="brand-name">Pocket Pal</span>
       </a>
       <div class="topbar-actions">
-        <button class="quiet-button" id="sound-toggle" type="button" aria-pressed="${muted}">
-          <span class="button-icon" aria-hidden="true">${muted ? '♪' : '♫'}</span><span>${muted ? 'Sound off' : 'Sound on'}</span>
-        </button>
-        <button class="quiet-button" id="crt-toggle" type="button" aria-pressed="${crtOn}">
-          <span class="button-icon" aria-hidden="true">▦</span><span>${crtOn ? 'CRT on' : 'CRT off'}</span>
+        <button class="quiet-button" id="settings-open" type="button" aria-haspopup="dialog" aria-controls="settings-dialog" data-testid="settings-open">
+          <span class="button-icon" aria-hidden="true">⚙</span><span>Settings</span>
         </button>
         <button class="quiet-button" id="about-open" type="button" aria-haspopup="dialog">About</button>
         <button class="install-button" id="install-app" type="button" hidden>Install</button>
@@ -104,21 +108,23 @@ root.innerHTML = `
             <span id="signal-copy">Pip is happy to have you here.</span>
           </div>
 
+          <div class="care-controls" id="care-controls">
           <div class="care-divider"><span>Little ways to help</span><span class="divider-line"></span></div>
           <div class="food-section">
             <div class="food-intro"><h3>Offer a snack</h3><p>Each bite gives Pip a different boost.</p></div>
             <div class="food-grid" id="food-actions"></div>
           </div>
           <div class="action-grid">
-            <button class="action-button" type="button" data-action="play">
+            <button class="action-button" type="button" data-action="play" data-testid="action-play" aria-label="Play with Pip">
               <span class="action-glyph play-glyph" aria-hidden="true">✦</span><span class="action-name">Play</span><span class="action-detail">A happy wiggle</span>
             </button>
-            <button class="action-button" type="button" data-action="toggle-sleep">
+            <button class="action-button" type="button" data-action="toggle-sleep" data-testid="action-sleep" aria-label="Tuck Pip in or wake Pip">
               <span class="action-glyph sleep-glyph" aria-hidden="true">☾</span><span class="action-name" id="sleep-label">Tuck in</span><span class="action-detail" id="sleep-detail">Rest a little</span>
             </button>
-            <button class="action-button" type="button" data-action="clean">
+            <button class="action-button" type="button" data-action="clean" data-testid="action-clean" aria-label="Clean Pip">
               <span class="action-glyph clean-glyph" aria-hidden="true">✧</span><span class="action-name">Clean</span><span class="action-detail">A freshen-up</span>
             </button>
+          </div>
           </div>
           <p class="key-hint">Keyboard: 1–3 snacks · P play · S sleep · C clean</p>
         </section>
@@ -149,6 +155,41 @@ root.innerHTML = `
       <p>There are no push notifications and no time-away penalties. When you leave, the world pauses.</p>
       <p class="dialog-footnote">Your save lives in this browser on this device.</p>
     </dialog>
+    <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+      <div class="settings-heading">
+        <div><p class="eyebrow">Make care feel right</p><h2 id="settings-title">Pocket Pal settings</h2></div>
+        <button class="dialog-close" id="settings-close" type="button" aria-label="Close settings" data-testid="settings-close">×</button>
+      </div>
+      <p class="settings-intro">Tune Pip's buttons for your hands and screen.</p>
+      <div class="settings-list">
+        <label class="settings-field" for="control-size">
+          <span>Care button size</span>
+          <select id="control-size" data-testid="control-size">
+            <option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option>
+          </select>
+        </label>
+        <label class="settings-check" for="left-handed">
+          <input id="left-handed" type="checkbox" data-testid="left-handed" />
+          <span><strong>Left-handed layout</strong><small>Mirror the order of snacks and care actions.</small></span>
+        </label>
+        <label class="settings-check" for="haptics-toggle">
+          <input id="haptics-toggle" type="checkbox" data-testid="haptics-toggle" />
+          <span><strong>Haptics</strong><small>Use a short tick when you touch a care button.</small></span>
+        </label>
+        <label class="settings-field" for="control-opacity">
+          <span>Care button opacity</span>
+          <span class="range-line"><input id="control-opacity" type="range" min="40" max="100" step="10" data-testid="control-opacity" /><output id="control-opacity-value" for="control-opacity">100%</output></span>
+        </label>
+        <div class="settings-toggles" aria-label="Sound and display">
+          <button class="quiet-button setting-toggle" id="sound-toggle" type="button" aria-pressed="${muted}" data-testid="sound-toggle">
+            <span class="button-icon" aria-hidden="true">${muted ? '♪' : '♫'}</span><span>${muted ? 'Sound off' : 'Sound on'}</span>
+          </button>
+          <button class="quiet-button setting-toggle" id="crt-toggle" type="button" aria-pressed="${crtOn}" data-testid="crt-toggle">
+            <span class="button-icon" aria-hidden="true">▦</span><span>${crtOn ? 'CRT on' : 'CRT off'}</span>
+          </button>
+        </div>
+      </div>
+    </dialog>
   </div>
 `;
 
@@ -160,7 +201,16 @@ const moodChip = must<HTMLSpanElement>('#mood-chip');
 const soundToggle = must<HTMLButtonElement>('#sound-toggle');
 const crtToggle = must<HTMLButtonElement>('#crt-toggle');
 const aboutDialog = must<HTMLDialogElement>('#about-dialog');
+const settingsDialog = must<HTMLDialogElement>('#settings-dialog');
+const controlSizeInput = must<HTMLSelectElement>('#control-size');
+const leftHandedInput = must<HTMLInputElement>('#left-handed');
+const hapticsInput = must<HTMLInputElement>('#haptics-toggle');
+const controlOpacityInput = must<HTMLInputElement>('#control-opacity');
+const controlOpacityValue = must<HTMLOutputElement>('#control-opacity-value');
 installButton = must<HTMLButtonElement>('#install-app');
+root.dataset.controlSize = controlSize;
+root.dataset.handedness = leftHanded ? 'left' : 'right';
+root.style.setProperty('--control-opacity', String(controlOpacity / 100));
 
 function must<T extends Element>(selector: string): T {
   const element = root?.querySelector<T>(selector);
@@ -185,6 +235,45 @@ function writeSetting(key: string, value: boolean): void {
   }
 }
 
+function readControlSize(): ControlSize {
+  try {
+    const saved = localStorage.getItem('pocket-pal-control-size');
+    return controlSizes.find((size) => size === saved) ?? 'medium';
+  } catch {
+    return 'medium';
+  }
+}
+
+function readControlOpacity(): number {
+  try {
+    const value = Number(localStorage.getItem('pocket-pal-control-opacity'));
+    return Number.isFinite(value) && value >= 40 && value <= 100 ? value : 100;
+  } catch {
+    return 100;
+  }
+}
+
+function writePreference(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Preferences are optional and never block the game.
+  }
+}
+
+function applyControlSettings(): void {
+  if (!root) return;
+  root.dataset.controlSize = controlSize;
+  root.dataset.handedness = leftHanded ? 'left' : 'right';
+  root.style.setProperty('--control-opacity', String(controlOpacity / 100));
+  controlSizeInput.value = controlSize;
+  leftHandedInput.checked = leftHanded;
+  hapticsInput.checked = hapticsOn;
+  controlOpacityInput.value = String(controlOpacity);
+  controlOpacityValue.value = `${controlOpacity}%`;
+  controlOpacityValue.textContent = `${controlOpacity}%`;
+}
+
 function renderNeedList(): void {
   const list = must<HTMLDivElement>('#need-list');
   list.innerHTML = (Object.keys(needLabels) as NeedKey[]).map((key) => `
@@ -206,7 +295,7 @@ function renderFoodActions(): void {
     'moss-muffin': '▣',
   };
   grid.innerHTML = foods.map((food, index) => `
-    <button class="food-button" type="button" data-action="feed" data-food-id="${food.id}" title="${food.description}">
+    <button class="food-button" type="button" data-action="feed" data-food-id="${food.id}" data-testid="feed-${food.id}" aria-label="Feed Pip ${food.name}. ${food.description}" title="${food.description}">
       <span class="food-mark food-mark-${index + 1}" aria-hidden="true">${marks[food.id] ?? '✦'}</span>
       <span class="food-name">${food.name}</span>
       <span class="food-hint">${index + 1}</span>
@@ -272,6 +361,7 @@ function updateControls(current: GameState): void {
 
   must<HTMLSpanElement>('#sleep-label').textContent = current.sleeping ? 'Wake up' : 'Tuck in';
   must<HTMLSpanElement>('#sleep-detail').textContent = current.sleeping ? 'Say hello again' : 'Rest a little';
+  must<HTMLButtonElement>('[data-action="toggle-sleep"]').setAttribute('aria-label', current.sleeping ? 'Wake Pip' : 'Tuck Pip in');
   must<HTMLSpanElement>('#stage-pill').textContent = current.stage === 'egg' ? 'Egg' : 'Baby';
   must<HTMLSpanElement>('#stage-detail').textContent = current.stage === 'egg'
     ? `Hatching in ${formatClock(Math.max(0, rules.lifeStages.eggMinutes * 60 - current.stageSeconds))}`
@@ -379,7 +469,35 @@ function startLoop(now: number): void {
 
 renderNeedList();
 renderFoodActions();
+applyControlSettings();
 root.classList.toggle('crt-on', crtOn);
+must<HTMLButtonElement>('#settings-open').addEventListener('click', () => settingsDialog.showModal());
+must<HTMLButtonElement>('#settings-close').addEventListener('click', () => settingsDialog.close());
+settingsDialog.addEventListener('click', (event) => {
+  if (event.target === settingsDialog) settingsDialog.close();
+});
+controlSizeInput.addEventListener('change', () => {
+  const selected = controlSizes.find((size) => size === controlSizeInput.value);
+  if (!selected) return;
+  controlSize = selected;
+  writePreference('pocket-pal-control-size', controlSize);
+  applyControlSettings();
+});
+leftHandedInput.addEventListener('change', () => {
+  leftHanded = leftHandedInput.checked;
+  writeSetting('pocket-pal-left-handed', leftHanded);
+  applyControlSettings();
+});
+hapticsInput.addEventListener('change', () => {
+  hapticsOn = hapticsInput.checked;
+  writeSetting('pocket-pal-haptics', hapticsOn);
+  applyControlSettings();
+});
+controlOpacityInput.addEventListener('input', () => {
+  controlOpacity = Number(controlOpacityInput.value);
+  writePreference('pocket-pal-control-opacity', String(controlOpacity));
+  applyControlSettings();
+});
 soundToggle.addEventListener('click', () => {
   muted = !muted;
   writeSetting('pocket-pal-muted', muted);
@@ -398,14 +516,8 @@ crtToggle.addEventListener('click', () => {
 root.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!button) return;
-  if (button.dataset.action === 'feed' && button.dataset.foodId) {
-    sendAction({ type: 'feed', foodId: button.dataset.foodId });
-  } else if (button.dataset.action === 'play') {
-    sendAction({ type: 'play' });
-  } else if (button.dataset.action === 'clean') {
-    sendAction({ type: 'clean' });
-  } else if (button.dataset.action === 'toggle-sleep') {
-    sendAction({ type: 'toggle-sleep' });
+  if (button.dataset.action) {
+    activateCareButton(button);
   } else if (button.id === 'resume-button') {
     state = state ? { ...state, paused: false } : state;
     worker.postMessage({ type: 'resume' });
@@ -439,7 +551,7 @@ function syncAboutRoute(): void {
 }
 
 window.addEventListener('keydown', (event) => {
-  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open) return;
+  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open || settingsDialog.open) return;
   const target = event.target as HTMLElement;
   if (target.matches('input, textarea, select, [contenteditable="true"]')) return;
   const key = event.key.toLowerCase();
@@ -499,3 +611,20 @@ type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 };
+function activateCareButton(button: HTMLButtonElement): void {
+  if (button.dataset.action === 'feed' && button.dataset.foodId) {
+    sendAction({ type: 'feed', foodId: button.dataset.foodId });
+  } else if (button.dataset.action === 'play') {
+    sendAction({ type: 'play' });
+  } else if (button.dataset.action === 'clean') {
+    sendAction({ type: 'clean' });
+  } else if (button.dataset.action === 'toggle-sleep') {
+    sendAction({ type: 'toggle-sleep' });
+  }
+}
+
+attachTouchControls({
+  root,
+  onActivate: activateCareButton,
+  hapticsEnabled: () => hapticsOn,
+});
