@@ -10,4 +10,8 @@ Emulator tests can verify layout and event handling, but they cannot judge the c
 - [ ] Confirm Sound and CRT toggles still work in Settings.
 - [ ] Scroll the care page normally, including when the on-screen keyboard is not in use; pinching the page to zoom should remain available for accessibility.
 - [ ] In landscape, check the habitat and care choices remain reachable, then hide/show the browser and confirm the pause overlay prevents time-away decay.
+- [ ] In a browser that offers Mini, open it while the game is running, switch away from the tab, and confirm Pip's needs continue changing in the mini window.
+- [ ] Use Snack, Play, Rest/Wake, and Clean in Document Picture-in-Picture; close the mini window and confirm the main game is paused when you return.
+- [ ] If Document Picture-in-Picture is unavailable but video Picture-in-Picture is offered, confirm the video view opens and Feed/Play media-session actions work when the browser exposes them.
+- [ ] In a browser with neither Picture-in-Picture API, confirm Mini is not shown and normal pause-on-hide behavior remains.
 - [ ] If the browser offers installation, install the PWA, reopen it offline, and verify the same saved pet and settings are present.

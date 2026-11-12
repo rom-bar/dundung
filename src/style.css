@@ -107,6 +107,7 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
+#mini-mode-button[aria-pressed="true"] { border-color: rgba(171, 223, 180, 0.35); color: var(--mint); }
 
 .quiet-button, .install-button {
   min-height: 38px;
@@ -130,6 +131,7 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
   background: rgba(255, 255, 255, 0.035);
   color: var(--paper);
 }
+.quiet-button[hidden] { display: none; }
 
 .button-icon { color: var(--honey); font-size: 16px; }
 .install-button { border-color: rgba(171, 223, 180, 0.4); color: var(--mint); }
@@ -629,6 +631,7 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
   .topbar-actions { gap: 3px; }
   .quiet-button, .install-button { min-height: 44px; padding: 0 7px; font-size: 10px; }
   .quiet-button .button-icon { font-size: 14px; }
+  #mini-mode-button span:not(.button-icon) { display: none; }
   #about-open { padding: 0 6px; }
   .welcome-line { align-items: flex-start; flex-direction: column; gap: 13px; padding: 27px 0 18px; }
   .welcome-line .eyebrow { margin-bottom: 8px; }

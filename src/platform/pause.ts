@@ -1,10 +1,12 @@
 export interface PauseHooks {
   pause: () => void;
   saveNow: () => void;
+  miniModeActive?: () => boolean;
 }
 
 export function attachPauseHandlers(hooks: PauseHooks): () => void {
   const pauseAndSave = () => {
+    if (hooks.miniModeActive?.()) return;
     hooks.pause();
     hooks.saveNow();
   };

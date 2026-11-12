@@ -7,6 +7,7 @@ import { playSound, type SoundKind } from './platform/audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
 import { attachTouchControls } from './platform/touch-controls';
+import { createMiniMode } from './platform/mini-mode';
 import './style.css';
 
 const root = document.querySelector<HTMLDivElement>('#app');
@@ -61,6 +62,9 @@ root.innerHTML = `
         <span class="brand-name">Pocket Pal</span>
       </a>
       <div class="topbar-actions">
+        <button class="quiet-button" id="mini-mode-button" type="button" aria-label="Open mini mode" title="Open mini mode">
+          <span class="button-icon" aria-hidden="true">▣</span><span>Mini</span>
+        </button>
         <button class="quiet-button" id="settings-open" type="button" aria-haspopup="dialog" aria-controls="settings-dialog" data-testid="settings-open">
           <span class="button-icon" aria-hidden="true">⚙</span><span>Settings</span>
         </button>
@@ -208,6 +212,23 @@ const hapticsInput = must<HTMLInputElement>('#haptics-toggle');
 const controlOpacityInput = must<HTMLInputElement>('#control-opacity');
 const controlOpacityValue = must<HTMLOutputElement>('#control-opacity-value');
 installButton = must<HTMLButtonElement>('#install-app');
+const miniModeButton = must<HTMLButtonElement>('#mini-mode-button');
+const miniMode = createMiniMode({
+  canvas,
+  getState: () => state,
+  onTick: (dtMs) => worker.postMessage({ type: 'tick', dtMs }),
+  onAction: sendAction,
+  onOpen: (kind) => {
+    miniModeButton.setAttribute('aria-pressed', 'true');
+    miniModeButton.title = kind === 'document' ? 'Mini mode is open' : 'Video mini mode is open';
+  },
+  onClose: () => {
+    miniModeButton.setAttribute('aria-pressed', 'false');
+    miniModeButton.title = 'Open mini mode';
+    pauseAndSave();
+  },
+});
+if (!miniMode.available) miniModeButton.hidden = true;
 root.dataset.controlSize = controlSize;
 root.dataset.handedness = leftHanded ? 'left' : 'right';
 root.style.setProperty('--control-opacity', String(controlOpacity / 100));
@@ -398,6 +419,7 @@ function updateControls(current: GameState): void {
   if (current.paused) must<HTMLButtonElement>('#resume-button').focus({ preventScroll: true });
   root?.classList.toggle('crt-on', crtOn);
   drawPetScene(canvas, current, performance.now() / 1000, prefersReducedMotion.matches);
+  miniMode.update(current);
 }
 
 function scheduleSave(): void {
@@ -439,6 +461,7 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
     if (previousStage === 'egg' && state.stage === 'baby') showToast('Pip hatched into a little friend!');
   } else if (message.type === 'action-result') {
     showToast(message.result.message);
+    miniMode.setMessage(message.result.message);
     if (message.result.accepted && message.result.action) {
       const kind = message.result.action === 'sleep' && state?.sleeping ? 'wake' : actionAnimations[message.result.action];
       if (kind) playSound(kind, muted);
@@ -457,10 +480,14 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
 }
 
 function startLoop(now: number): void {
-  if (state && !state.paused && document.visibilityState === 'visible') {
-    if (lastFrameTime > 0) worker.postMessage({ type: 'tick', dtMs: Math.min(now - lastFrameTime, rules.simulation.maxStepMs) });
-    lastFrameTime = now;
-    drawPetScene(canvas, state, now / 1000, prefersReducedMotion.matches);
+  if (state && !state.paused && (document.visibilityState === 'visible' || miniMode.kind === 'video')) {
+    if (!miniMode.open && document.visibilityState === 'visible' && lastFrameTime > 0) {
+      worker.postMessage({ type: 'tick', dtMs: Math.min(now - lastFrameTime, rules.simulation.maxStepMs) });
+    }
+    lastFrameTime = miniMode.open ? 0 : now;
+    if (document.visibilityState === 'visible' || miniMode.kind === 'video') {
+      drawPetScene(canvas, state, now / 1000, prefersReducedMotion.matches);
+    }
   } else {
     lastFrameTime = 0;
   }
@@ -518,6 +545,11 @@ root.addEventListener('click', (event) => {
   if (!button) return;
   if (button.dataset.action) {
     activateCareButton(button);
+  } else if (button.id === 'mini-mode-button') {
+    void miniMode.enter().then((opened) => {
+      if (opened) return;
+      showToast(state?.paused ? 'Continue with Pip before opening mini mode.' : 'Mini mode could not open here.');
+    });
   } else if (button.id === 'resume-button') {
     state = state ? { ...state, paused: false } : state;
     worker.postMessage({ type: 'resume' });
@@ -582,6 +614,7 @@ worker.addEventListener('message', onWorkerMessage);
 attachPauseHandlers({
   pause: pauseAndSave,
   saveNow: scheduleSave,
+  miniModeActive: () => miniMode.open,
 });
 window.setInterval(scheduleSave, rules.simulation.autosaveSeconds * 1000);
 

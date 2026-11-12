@@ -143,6 +143,81 @@ test('haptics stay off by default and vibrate once when enabled for touch', asyn
   await play.dispatchEvent('pointerup', { pointerId: 62, pointerType: 'touch', isPrimary: true });
 });
 
+test('mini mode keeps the worker active while the main page is hidden and pauses when PiP closes', async ({ page }) => {
+  await page.addInitScript(() => {
+    const browserWindow = window as Window & { __pocketTicks?: number; documentPictureInPicture?: unknown };
+    browserWindow.__pocketTicks = 0;
+    const postMessage = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message) {
+      if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'tick') {
+        browserWindow.__pocketTicks = (browserWindow.__pocketTicks ?? 0) + 1;
+      }
+      return postMessage.call(this, message);
+    };
+    Object.defineProperty(window, 'documentPictureInPicture', {
+      configurable: true,
+      value: {
+        window: null,
+        async requestWindow() {
+          const miniWindow = window.open('about:blank', 'PocketPalMini', 'width=320,height=400');
+          if (!miniWindow) throw new Error('The test PiP window could not open.');
+          this.window = miniWindow;
+          return miniWindow;
+        },
+      },
+    });
+  });
+  await openFreshGame(page);
+  const popupPromise = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Open mini mode' }).click();
+  const mini = await popupPromise;
+  await expect(mini.locator('#mini-scene')).toBeVisible();
+  await expect(mini.getByRole('button', { name: 'Play with Pip' })).toBeEnabled();
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('blur'));
+  });
+  const ticksBefore = await page.evaluate(() => (window as Window & { __pocketTicks?: number }).__pocketTicks ?? 0);
+  await expect.poll(() => page.evaluate(() => (window as Window & { __pocketTicks?: number }).__pocketTicks ?? 0)).toBeGreaterThan(ticksBefore);
+
+  await mini.getByRole('button', { name: 'Play with Pip' }).click();
+  await expect(page.locator('#toast')).toContainText('lovely');
+  await mini.close();
+  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeVisible();
+});
+
+test('mini mode falls back to video PiP and hides cleanly when neither PiP API exists', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'documentPictureInPicture', { configurable: true, value: undefined });
+    HTMLCanvasElement.prototype.captureStream = () => new MediaStream();
+    HTMLMediaElement.prototype.play = () => Promise.resolve();
+    HTMLVideoElement.prototype.requestPictureInPicture = async function () {
+      Object.defineProperty(document, 'pictureInPictureElement', { configurable: true, value: this });
+      return { width: 320, height: 180 } as PictureInPictureWindow;
+    };
+  });
+  await openFreshGame(page);
+  const miniButton = page.getByRole('button', { name: 'Open mini mode' });
+  await expect(miniButton).toBeVisible();
+  await miniButton.click();
+  await expect(miniButton).toHaveAttribute('aria-pressed', 'true');
+  const video = page.locator('video[aria-hidden="true"]');
+  await expect(video).toBeAttached();
+  await video.dispatchEvent('leavepictureinpicture');
+  await expect(page.getByRole('dialog', { name: 'Paused' })).toBeVisible();
+
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'documentPictureInPicture', { configurable: true, value: undefined });
+    Object.defineProperty(HTMLCanvasElement.prototype, 'captureStream', { configurable: true, value: undefined });
+    Object.defineProperty(HTMLVideoElement.prototype, 'requestPictureInPicture', { configurable: true, value: undefined });
+  });
+  await page.reload();
+  await openFreshGame(page);
+  await expect(page.locator('#mini-mode-button')).toBeHidden();
+});
+
 test('left-handed mode mirrors the visual order of both care banks', async ({ page }) => {
   await openFreshGame(page);
   const firstFood = page.getByTestId('feed-moonberry-jam');

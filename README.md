@@ -1,12 +1,12 @@
 # Pocket Pal
 
-A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This is **Phase 1: foundation and care loop**. Dungeon runs, equipment, generations, and mini mode are intentionally not included yet.
+A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phase 1: foundation and care loop** and **Phase 2: mini mode**. Dungeon runs, equipment, and generations are later phases.
 
 **Live site:** <https://rom-bar.github.io/dundung/> (available after GitHub Pages is enabled and the first deployment succeeds).
 
 ## Play
 
-Open the live site once while online, then Pocket Pal can load offline from the same browser. Feed Pip one of three snacks, play, tuck Pip in or wake them, and clean up. The four needs change only during active play. If the page is hidden, closed, or loses focus, the game pauses and saves; returning never applies time away.
+Open the live site once while online, then Pocket Pal can load offline from the same browser. Feed Pip one of three snacks, play, tuck Pip in or wake them, and clean up. The four needs change only during active play. If the page is hidden, closed, or loses focus, the game pauses and saves; returning never applies time away. On supported browsers, open **Mini** before switching apps to keep Pip's needs moving and use quick care actions in a floating window.
 
 Use the care buttons or keyboard shortcuts: **1–3** offer the three snacks, **P** plays, **S** toggles sleep, and **C** cleans. On portrait phones, the care buttons stick to the bottom when the care section is in view. Open **Settings** to switch Sound or CRT scanlines, choose button size and opacity, mirror the care controls for a left-handed layout, or enable a short touch haptic. These preferences stay on this device. Buttons act once per press; holding them never repeats a care action. The small hash router uses `#/` for the home screen and `#/about` for the About page, which explains the original-content policy.
 
@@ -46,14 +46,14 @@ Quest and item data belong to later dungeon phases and are not part of this buil
 
 ## Mini mode support matrix
 
-Mini mode is a **Phase 2** feature and is not available in this release. The matrix records implementation status, not a browser compatibility promise; Phase 2 will feature-detect the APIs and then document tested versions.
+Mini mode prefers the Document Picture-in-Picture API. If that API is missing or cannot open, Pocket Pal tries video Picture-in-Picture with feed/play media-session actions. If neither path is available, the Mini button stays hidden and the normal pause-on-hide behavior remains in effect. API support is feature-detected; this matrix describes the available path, not a promise that every browser build or device exposes it.
 
 | Browser family | Document Picture-in-Picture | Video Picture-in-Picture fallback | Pocket Pal status |
 | --- | --- | --- | --- |
-| Chromium desktop | Planned feature detection | Planned feature detection | Not available in Phase 1 |
-| Firefox desktop | Planned feature detection | Planned feature detection | Not available in Phase 1 |
-| Safari desktop and iOS | Planned feature detection | Planned feature detection | Not available in Phase 1 |
-| Android browsers | Planned feature detection | Planned feature detection | Not available in Phase 1 |
+| Chromium desktop | Preferred path, when exposed | Fallback, when exposed | Document PiP with interactive care; video fallback is view-mostly |
+| Firefox desktop | Used when exposed | Fallback, when exposed | Feature-detected; otherwise mini mode is hidden |
+| Safari desktop and iOS | Used when exposed | Fallback, when exposed | Feature-detected; otherwise mini mode is hidden |
+| Android browsers | Used when exposed | Fallback, when exposed | Feature-detected; otherwise mini mode is hidden |
 
 ## Tests and acceptance checks
 
