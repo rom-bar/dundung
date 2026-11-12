@@ -1,0 +1,32 @@
+[
+  {
+    "id": "moonberry-jam",
+    "name": "Moonberry jam",
+    "description": "Sweet, bright, and easy to share.",
+    "hunger": 24,
+    "happiness": 5,
+    "energy": 2,
+    "hygiene": -1,
+    "tags": ["sweet", "berry"]
+  },
+  {
+    "id": "dew-drop",
+    "name": "Dew drop",
+    "description": "A cool sip gathered from the cave fern.",
+    "hunger": 12,
+    "happiness": 2,
+    "energy": 14,
+    "hygiene": 1,
+    "tags": ["fresh", "drink"]
+  },
+  {
+    "id": "moss-muffin",
+    "name": "Moss muffin",
+    "description": "A soft little treat with a green crumb.",
+    "hunger": 32,
+    "happiness": 8,
+    "energy": -2,
+    "hygiene": -2,
+    "tags": ["baked", "comfort"]
+  }
+]

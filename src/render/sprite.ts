@@ -1,0 +1,166 @@
+import type { GameState } from '../core/types';
+import { getMood } from '../core/game';
+
+const width = 240;
+const height = 160;
+const colors = {
+  night: '#1b172b',
+  deep: '#29243b',
+  rock: '#483d59',
+  rockLight: '#64536c',
+  mint: '#abdfb4',
+  mintShade: '#68aa83',
+  honey: '#f1c96b',
+  honeyShade: '#c78d4e',
+  pet: '#a5dfb2',
+  petShade: '#619779',
+  petLight: '#d9f4c5',
+  plum: '#d782a7',
+  cream: '#fff1c9',
+  water: '#82c8d3',
+};
+
+const stars = [
+  [22, 31], [48, 51], [80, 22], [119, 38], [171, 26], [210, 48], [196, 78], [34, 88],
+] as const;
+
+function rect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, h);
+}
+
+function drawHabitat(ctx: CanvasRenderingContext2D, seconds: number, reducedMotion: boolean): void {
+  rect(ctx, 0, 0, width, height, colors.night);
+  rect(ctx, 0, 105, width, 55, colors.deep);
+
+  // Stalactites and ledges make the scene feel like a quiet underground pocket.
+  rect(ctx, 0, 0, width, 12, colors.deep);
+  rect(ctx, 18, 12, 10, 18, colors.deep);
+  rect(ctx, 28, 12, 8, 10, colors.deep);
+  rect(ctx, 89, 12, 12, 14, colors.deep);
+  rect(ctx, 101, 12, 8, 8, colors.deep);
+  rect(ctx, 187, 12, 12, 20, colors.deep);
+  rect(ctx, 199, 12, 8, 10, colors.deep);
+  rect(ctx, 10, 94, 24, 5, colors.rock);
+  rect(ctx, 206, 92, 22, 5, colors.rock);
+
+  stars.forEach(([x, y], index) => {
+    const flicker = reducedMotion ? 0 : Math.sin(seconds * 2 + index) * 1.5;
+    rect(ctx, x, y + flicker, index % 3 === 0 ? 3 : 2, index % 3 === 0 ? 3 : 2,
+      index % 2 === 0 ? colors.honey : colors.mint);
+  });
+
+  // A tiny spring and two fern silhouettes frame the pet without hiding it.
+  rect(ctx, 25, 118, 3, 18, colors.mintShade);
+  rect(ctx, 17, 115, 9, 4, colors.mint);
+  rect(ctx, 25, 109, 8, 4, colors.mint);
+  rect(ctx, 29, 119, 8, 4, colors.mint);
+  rect(ctx, 205, 121, 3, 17, colors.mintShade);
+  rect(ctx, 198, 116, 8, 4, colors.mint);
+  rect(ctx, 207, 110, 8, 4, colors.mint);
+  rect(ctx, 208, 122, 10, 4, colors.mint);
+  rect(ctx, 0, 139, width, 21, colors.rock);
+  rect(ctx, 0, 139, width, 3, colors.rockLight);
+  rect(ctx, 42, 148, 9, 3, colors.honeyShade);
+  rect(ctx, 179, 145, 11, 3, colors.honeyShade);
+  rect(ctx, 88, 143, 5, 3, colors.rockLight);
+  rect(ctx, 146, 151, 8, 3, colors.rockLight);
+}
+
+function drawEgg(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: number): void {
+  const wobble = frame % 2 === 0 ? 0 : 1;
+  const x = cx - 21 + wobble;
+  rect(ctx, x + 12, top, 18, 4, colors.cream);
+  rect(ctx, x + 7, top + 4, 28, 4, colors.honey);
+  rect(ctx, x + 4, top + 8, 34, 8, colors.honey);
+  rect(ctx, x, top + 16, 42, 24, colors.honey);
+  rect(ctx, x + 4, top + 40, 34, 8, colors.honeyShade);
+  rect(ctx, x + 8, top + 48, 26, 4, colors.honeyShade);
+  rect(ctx, x + 8, top + 12, 8, 4, colors.cream);
+  rect(ctx, x + 12, top + 8, 8, 4, colors.cream);
+  rect(ctx, x + 13, top + 26, 4, 5, colors.deep);
+  rect(ctx, x + 27, top + 26, 4, 5, colors.deep);
+  rect(ctx, x + 17, top + 35, 10, 3, colors.honeyShade);
+}
+
+function drawBaby(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: number, sleeping: boolean): void {
+  const x = cx - 24;
+  const hop = frame % 2 === 0 ? 0 : -3;
+  const y = top + hop;
+
+  // Ear-like leaf tips, round body, small feet, and a two-tone belly.
+  rect(ctx, x + 5, y + 15, 8, 10, colors.petShade);
+  rect(ctx, x + 11, y + 7, 8, 10, colors.mint);
+  rect(ctx, x + 34, y + 7, 8, 10, colors.mint);
+  rect(ctx, x + 39, y + 15, 7, 10, colors.petShade);
+  rect(ctx, x + 5, y + 25, 6, 20, colors.petShade);
+  rect(ctx, x + 11, y + 17, 34, 31, colors.pet);
+  rect(ctx, x + 17, y + 11, 22, 8, colors.pet);
+  rect(ctx, x + 11, y + 42, 8, 8, colors.petShade);
+  rect(ctx, x + 37, y + 42, 8, 8, colors.petShade);
+  rect(ctx, x + 18, y + 31, 20, 13, colors.petLight);
+  rect(ctx, x + 13, y + 22, 6, 4, colors.cream);
+
+  if (sleeping) {
+    rect(ctx, x + 17, y + 25, 7, 3, colors.deep);
+    rect(ctx, x + 33, y + 25, 7, 3, colors.deep);
+    rect(ctx, x + 25, y + 34, 8, 3, colors.petShade);
+  } else if (frame % 5 === 0) {
+    rect(ctx, x + 17, y + 24, 7, 3, colors.deep);
+    rect(ctx, x + 33, y + 24, 7, 3, colors.deep);
+    rect(ctx, x + 27, y + 33, 5, 4, colors.petShade);
+  } else {
+    rect(ctx, x + 18, y + 23, 4, 5, colors.deep);
+    rect(ctx, x + 34, y + 23, 4, 5, colors.deep);
+    rect(ctx, x + 27, y + 34, 6, 3, colors.petShade);
+  }
+  rect(ctx, x + 9, y + 31, 5, 4, colors.plum);
+  rect(ctx, x + 41, y + 31, 5, 4, colors.plum);
+}
+
+function drawSignal(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const mood = getMood(state);
+  if (mood === 'content') return;
+  const mark = mood === 'sick' ? '!' : mood === 'unhappy' ? '…' : '?';
+  ctx.fillStyle = colors.cream;
+  ctx.fillRect(158, 48, 42, 27);
+  ctx.fillRect(153, 54, 6, 13);
+  ctx.fillRect(151, 69, 8, 6);
+  ctx.fillStyle = colors.deep;
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(mark, 179, 62);
+}
+
+export function drawPetScene(
+  canvas: HTMLCanvasElement,
+  state: GameState,
+  nowSeconds: number,
+  reducedMotion: boolean,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.imageSmoothingEnabled = false;
+  const animationTime = reducedMotion ? 0 : nowSeconds;
+  drawHabitat(ctx, animationTime, reducedMotion);
+
+  const animationActive = state.animationRemainingSeconds > 0;
+  const bouncing = animationActive && (state.animation === 'play' || state.animation === 'wake');
+  const eating = animationActive && state.animation === 'eat';
+  const frame = Math.floor(animationTime * (bouncing ? 8 : 2));
+  const petTop = 83 + (bouncing ? Math.sin(animationTime * 14) * 5 : eating ? 2 : 0);
+
+  if (state.stage === 'egg') drawEgg(ctx, 120, petTop + 1, frame);
+  else drawBaby(ctx, 120, petTop, frame, state.sleeping || state.animation === 'sleep');
+  drawSignal(ctx, state);
+
+  if (state.sleeping && state.stage === 'baby') {
+    ctx.fillStyle = colors.honey;
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('z', 155, 96 + Math.sin(animationTime * 2) * (reducedMotion ? 0 : 2));
+    ctx.font = '8px monospace';
+    ctx.fillText('z', 165, 88 + Math.sin(animationTime * 2 + 1) * (reducedMotion ? 0 : 2));
+  }
+}

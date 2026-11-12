@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "simulation": {
+    "maxStepMs": 100,
+    "snapshotIntervalMs": 250,
+    "autosaveSeconds": 10
+  },
+  "needs": {
+    "minimum": 0,
+    "maximum": 100,
+    "signalThreshold": 30,
+    "unhappyThreshold": 0,
+    "signalCooldownSeconds": {
+      "hunger": 30,
+      "happiness": 30,
+      "energy": 30,
+      "hygiene": 30
+    },
+    "starting": {
+      "hunger": 82,
+      "happiness": 86,
+      "energy": 84,
+      "hygiene": 90
+    },
+    "decayPerMinute": {
+      "awake": {
+        "hunger": 3,
+        "happiness": 2,
+        "energy": 2,
+        "hygiene": 1.5
+      },
+      "sleeping": {
+        "hunger": 1.5,
+        "happiness": 0,
+        "energy": -8,
+        "hygiene": 0
+      }
+    }
+  },
+  "lifeStages": {
+    "eggMinutes": 1,
+    "babyMinutes": 15
+  },
+  "actionCooldownSeconds": {
+    "feed": 2,
+    "play": 2,
+    "clean": 2,
+    "sleep": 2
+  },
+  "actionEffects": {
+    "play": {
+      "happiness": 18,
+      "energy": -8,
+      "hygiene": -1
+    },
+    "clean": {
+      "hygiene": 30
+    }
+  },
+  "animationSeconds": {
+    "eat": 1.2,
+    "play": 1.6,
+    "clean": 1.1,
+    "sleep": 1.4,
+    "wake": 1.1
+  },
+  "notifications": {
+    "toastDurationSeconds": 2.8,
+    "maximumQueueLength": 6
+  }
+}
