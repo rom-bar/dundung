@@ -230,7 +230,7 @@ export function drawPetScene(
   reducedMotion: boolean,
   renderCharacter = true,
 ): void {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { desynchronized: true });
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;
   const animationTime = reducedMotion ? 0 : nowSeconds;

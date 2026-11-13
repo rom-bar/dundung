@@ -655,7 +655,7 @@ test('Dungeon run opens on desktop and mobile, enforces the three-slot pack, and
   await expect(dialog.getByTestId('dungeon-fight')).toBeVisible({ timeout: 5_000 });
   await expect(page.locator('#stage-location')).toHaveText('BATTLE', { timeout: 5_000 });
   await expect(page.locator('#stage-hp-status')).toBeVisible();
-  await expect(page.getByTestId('stage-ticker')).toContainText('auto-fight in progress');
+  await expect.poll(() => page.evaluate(() => window.__game?.getEventLog().some((event) => event.type === 'attack') ?? false), { timeout: 5_000 }).toBe(true);
   await expect(dialog.locator('[data-testid^="room-"]')).toHaveCount(3, { timeout: 8_000 });
   await expect(dialog.locator('.dungeon-path .is-cleared')).toHaveCount(1);
   expect(Number(await dialog.locator('.run-ledger span').first().locator('strong').textContent())).toBeGreaterThan(0);

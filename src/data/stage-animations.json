@@ -1,0 +1,29 @@
+{
+  "durationsMs": {
+    "walk_start": 780,
+    "room_enter": 260,
+    "enemy_appear": 520,
+    "boss_intro": 820,
+    "combat_start": 340,
+    "attack": 380,
+    "miss": 310,
+    "heal": 430,
+    "buff_applied": 420,
+    "status_applied": 420,
+    "item_used": 430,
+    "chest_open": 660,
+    "loot_drop": 540,
+    "room_story": 520,
+    "victory": 680,
+    "boss_phase": 520,
+    "floor_cleared": 760,
+    "run_complete": 700,
+    "faint": 820,
+    "return_home": 520
+  },
+  "defaultDurationMs": 420,
+  "reducedMotionMs": 240,
+  "skipSummaryMs": 1400,
+  "maximumHistory": 512,
+  "maximumParticles": 8
+}

@@ -2,8 +2,9 @@ import rules from './data/rules.json';
 import endlessRules from './data/endless-rules.json';
 import foods from './data/foods.json';
 import { createInitialState, getMood, getNeedSignals } from './core/game';
-import type { GameAction, GameState, HomeUpgradeId, NeedKey, StatKey, WorkerOutMessage } from './core/types';
-import { drawStageScene, getStageSceneKind, stageCaption, stageLocation } from './render/stage/scene';
+import type { GameAction, GameState, HomeUpgradeId, NeedKey, StageVisualEvent, StatKey, WorkerOutMessage } from './core/types';
+import { getStageSceneKind, StageSceneRenderer, stageCaption, stageLocation } from './render/stage/scene';
+import { StageEventPlayer, stageEventCaption, type AnimationSpeed } from './render/stage/event-player';
 import { playSound, type SoundKind } from './platform/audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
@@ -34,6 +35,36 @@ import type { AscensionPerkId, AutoScrapThreshold, DungeonRoomType, DungeonRunSt
 import evolutions from './data/evolutions.json';
 import dungeonRules from './data/dungeon-rules.json';
 import './style.css';
+
+declare global {
+  interface Window {
+    __game?: {
+      getState: () => GameState | null;
+      getVisualState: () => { phase: string | null; location: string | null } | null;
+      getEventLog: () => StageVisualEvent[];
+      getPlaybackState: () => {
+        speed: AnimationSpeed;
+        queueLength: number;
+        frameEventType: StageVisualEvent['type'] | null;
+        frameProgress: number;
+        frameSummary: boolean;
+      };
+      getPerformanceMetrics: () => {
+        combatFrameSamples: number;
+        averageCombatFrameMs: number | null;
+        p95CombatFrameMs: number | null;
+        maxCombatFrameMs: number | null;
+        combatRenderSamples: number;
+        averageCombatRenderMs: number | null;
+        combatControlUpdateSamples: number;
+        averageCombatControlUpdateMs: number | null;
+        averageCombatLoopWorkMs: number | null;
+      };
+      setSpeed: (speed: AnimationSpeed) => void;
+      setSeed: (seed: number) => void;
+    };
+  }
+}
 
 const dungeonData = getDungeonData();
 const equipmentRules = getEquipmentRules();
@@ -85,6 +116,15 @@ let state: GameState | null = null;
 let muted = storedMute;
 let crtOn = storedCrt;
 let lastFrameTime = 0;
+let combatFrameTotalMs = 0;
+let combatFrameSamples = 0;
+let combatFrameIntervalsMs: number[] = [];
+let combatRenderTotalMs = 0;
+let combatRenderSamples = 0;
+let combatControlUpdateTotalMs = 0;
+let combatControlUpdateSamples = 0;
+let combatLoopWorkTotalMs = 0;
+let combatLoopWorkSamples = 0;
 let lastSavedLabel = 'Save stays on this device';
 let toastTimeout = 0;
 const toastQueue: string[] = [];
@@ -100,9 +140,10 @@ let selectedHomeTab: 'upgrades' | 'achievements' | 'records' | 'endless' = 'upgr
 let selectedMealStat: StatKey = 'ATK';
 let selectedDungeonMode: 'standard' | 'daily' = 'standard';
 type StageTab = 'pack' | 'gear' | 'care' | 'log' | 'stats';
-type AnimationSpeed = '1x' | '2x' | 'skip';
 let selectedStageTab: StageTab = 'care';
 let animationSpeed: AnimationSpeed = readAnimationSpeed();
+const stageEventPlayer = new StageEventPlayer();
+const stageRenderer = new StageSceneRenderer();
 let petCodeOutput = '';
 let ghostCodeInput = '';
 let ghostBattleResult: GhostBattleResult | null = null;
@@ -445,6 +486,70 @@ if (!miniMode.available) miniModeButton.hidden = true;
 root.dataset.controlSize = controlSize;
 root.dataset.handedness = leftHanded ? 'left' : 'right';
 root.style.setProperty('--control-opacity', String(controlOpacity / 100));
+if (import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') {
+  window.__game = {
+    getState: () => state ? structuredClone(state) : null,
+    getVisualState: () => {
+      const visual = stageRenderer.visualState();
+      const run = visual?.dungeon.activeRun;
+      return visual ? { phase: run?.phase ?? null, location: stageLocation(visual) } : null;
+    },
+    getEventLog: () => stageEventPlayer.eventLog(),
+    getPlaybackState: () => {
+      const frame = stageEventPlayer.frame();
+      return {
+        speed: animationSpeed,
+        queueLength: stageEventPlayer.queueLength(),
+        frameEventType: frame.event?.type ?? null,
+        frameProgress: frame.progress,
+        frameSummary: frame.summary,
+      };
+    },
+    getPerformanceMetrics: () => {
+      const sortedIntervals = [...combatFrameIntervalsMs].sort((left, right) => left - right);
+      const p95Index = Math.max(0, Math.ceil(sortedIntervals.length * 0.95) - 1);
+      return {
+        combatFrameSamples,
+        averageCombatFrameMs: combatFrameSamples ? combatFrameTotalMs / combatFrameSamples : null,
+        p95CombatFrameMs: sortedIntervals.length ? sortedIntervals[p95Index]! : null,
+        maxCombatFrameMs: sortedIntervals.length ? sortedIntervals[sortedIntervals.length - 1]! : null,
+        combatRenderSamples,
+        averageCombatRenderMs: combatRenderSamples ? combatRenderTotalMs / combatRenderSamples : null,
+        combatControlUpdateSamples,
+        averageCombatControlUpdateMs: combatControlUpdateSamples ? combatControlUpdateTotalMs / combatControlUpdateSamples : null,
+        averageCombatLoopWorkMs: combatLoopWorkSamples ? combatLoopWorkTotalMs / combatLoopWorkSamples : null,
+      };
+    },
+    setSpeed: (speed) => {
+      if (!['1x', '2x', 'skip'].includes(speed)) return;
+      animationSpeed = speed;
+      if (state) updateStageHud(state);
+    },
+    setSeed: (seed) => {
+      if (!state || !Number.isFinite(seed)) return;
+      const seededState: GameState = {
+        ...state,
+        seed: seed >>> 0,
+        paused: false,
+        dungeon: { ...state.dungeon, activeRun: null },
+      };
+      stageEventPlayer.reset();
+      stageRenderer.clear(canvas);
+      combatFrameTotalMs = 0;
+      combatFrameSamples = 0;
+      combatFrameIntervalsMs = [];
+      combatRenderTotalMs = 0;
+      combatRenderSamples = 0;
+      combatControlUpdateTotalMs = 0;
+      combatControlUpdateSamples = 0;
+      combatLoopWorkTotalMs = 0;
+      combatLoopWorkSamples = 0;
+      state = seededState;
+      worker.postMessage({ type: 'load', state: seededState, startPaused: false });
+      updateControls(seededState);
+    },
+  };
+}
 
 function must<T extends Element>(selector: string): T {
   const element = root?.querySelector<T>(selector);
@@ -1410,7 +1515,8 @@ function updateStageHud(current: GameState): void {
 
   const stageKind = getStageSceneKind(current);
   must<HTMLElement>('#stage-location').textContent = stageLocation(current);
-  must<HTMLElement>('#stage-ticker').textContent = stageCaption(current);
+  const eventCaption = stageEventCaption(stageEventPlayer.frame().event);
+  must<HTMLElement>('#stage-ticker').textContent = eventCaption ?? stageCaption(current);
   must<HTMLSpanElement>('#stage-sleep-label').textContent = current.sleeping ? 'Wake' : 'Sleep';
   canvas.setAttribute('aria-label', stageKind === 'home'
     ? current.stage === 'egg'
@@ -1425,6 +1531,7 @@ function updateStageHud(current: GameState): void {
 }
 
 function updateControls(current: GameState): void {
+  const controlsUpdateStartedAt = performance.now();
   root?.querySelectorAll<HTMLButtonElement>('[data-action]').forEach((button) => {
     const action = button.dataset.action;
     const key = action === 'toggle-sleep' ? 'sleep' : action;
@@ -1518,8 +1625,12 @@ function updateControls(current: GameState): void {
   root?.classList.toggle('crt-on', crtOn);
   updateStageHud(current);
   renderStageSheet(current);
-  drawStageScene(canvas, current, performance.now() / 1000, prefersReducedMotion.matches);
   miniMode.update(current);
+  const currentPhase = current.dungeon.activeRun?.phase;
+  if ((import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') && currentPhase === 'combat') {
+    combatControlUpdateTotalMs += performance.now() - controlsUpdateStartedAt;
+    combatControlUpdateSamples += 1;
+  }
 }
 
 function scheduleSave(): void {
@@ -1556,6 +1667,10 @@ function sendAction(action: GameAction): void {
 function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
   const message = event.data;
   if (message.type === 'snapshot') {
+    stageEventPlayer.enqueue(message.events ?? []);
+    if (state?.dungeon.activeRun?.phase === 'tactic' || state?.dungeon.activeRun?.phase === 'combat') {
+      stageRenderer.rememberBattleState(state);
+    }
     const previousStage = state?.stage;
     const previousForm = state?.evolution.formId;
     const previousGeneration = state?.generation;
@@ -1602,14 +1717,56 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
   }
 }
 
+function isDecisionPhase(phase: DungeonRunState['phase'] | undefined): boolean {
+  return phase === 'choice'
+    || phase === 'tactic'
+    || phase === 'event'
+    || phase === 'treasure'
+    || phase === 'rest'
+    || phase === 'shop'
+    || phase === 'floor-end';
+}
+
 function startLoop(now: number): void {
-  if (state && !state.paused && (document.visibilityState === 'visible' || miniMode.kind === 'video')) {
-    if (!miniMode.open && document.visibilityState === 'visible' && lastFrameTime > 0) {
-      worker.postMessage({ type: 'tick', dtMs: Math.min(now - lastFrameTime, rules.simulation.maxStepMs) });
+  const loopStartedAt = performance.now();
+  const isVisible = document.visibilityState === 'visible';
+  if (state && !state.paused && (isVisible || miniMode.kind === 'video')) {
+    const rawDeltaMs = lastFrameTime > 0 ? Math.max(0, now - lastFrameTime) : 0;
+    const deltaMs = Math.min(rawDeltaMs, rules.simulation.maxStepMs);
+    if (!miniMode.open && isVisible && deltaMs > 0) worker.postMessage({ type: 'tick', dtMs: deltaMs });
+    if ((!miniMode.open && isVisible) || miniMode.kind === 'video') {
+      const decisionOverlayOpen = dungeonDialog.open && isDecisionPhase(state.dungeon.activeRun?.phase);
+      stageEventPlayer.advance(deltaMs, animationSpeed, prefersReducedMotion.matches, decisionOverlayOpen);
     }
     lastFrameTime = miniMode.open ? 0 : now;
-    if (document.visibilityState === 'visible' || miniMode.kind === 'video') {
-      drawStageScene(canvas, state, now / 1000, prefersReducedMotion.matches);
+    if (isVisible || miniMode.kind === 'video') {
+      const frame = stageEventPlayer.frame();
+      const renderStartedAt = performance.now();
+      stageRenderer.update(state, now / 1000, prefersReducedMotion.matches, frame, stageEventPlayer.hasBattleSequence());
+      stageRenderer.draw(canvas);
+      const renderDurationMs = performance.now() - renderStartedAt;
+      const visualState = stageRenderer.visualState() ?? state;
+      const isCombatFrame = state.dungeon.activeRun?.phase === 'combat' && !state.paused;
+      const location = must<HTMLElement>('#stage-location');
+      const locationLabel = stageLocation(visualState);
+      if (location.textContent !== locationLabel) location.textContent = locationLabel;
+      const detail = must<HTMLElement>('#stage-detail');
+      const detailLabel = stageCaption(visualState);
+      if (detail.textContent !== detailLabel) detail.textContent = detailLabel;
+      const ticker = must<HTMLElement>('#stage-ticker');
+      const caption = stageEventCaption(frame.event) ?? detailLabel;
+      if (ticker.textContent !== caption) ticker.textContent = caption;
+      if ((import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') && isCombatFrame) {
+        if (rawDeltaMs > 0) {
+          combatFrameTotalMs += rawDeltaMs;
+          combatFrameIntervalsMs.push(rawDeltaMs);
+          combatFrameSamples += 1;
+        }
+        combatRenderTotalMs += renderDurationMs;
+        combatRenderSamples += 1;
+        combatLoopWorkTotalMs += performance.now() - loopStartedAt;
+        combatLoopWorkSamples += 1;
+      }
     }
   } else {
     lastFrameTime = 0;
@@ -1620,6 +1777,9 @@ function startLoop(now: number): void {
 renderNeedList();
 renderFoodActions();
 applyControlSettings();
+const stageResizeObserver = new ResizeObserver(() => stageRenderer.resize(canvas));
+stageResizeObserver.observe(canvas);
+stageRenderer.resize(canvas);
 root.classList.toggle('crt-on', crtOn);
 must<HTMLButtonElement>('#settings-open').addEventListener('click', () => settingsDialog.showModal());
 must<HTMLButtonElement>('#settings-close').addEventListener('click', () => settingsDialog.close());

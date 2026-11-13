@@ -335,6 +335,30 @@ export interface ActionResult {
   action?: ActionLabel;
 }
 
+export type StageEventPayload =
+  | { type: 'walk_start'; floor: number; biomeId: string }
+  | { type: 'room_enter'; floor: number; roomType: DungeonRoomType; phase: DungeonPhase }
+  | { type: 'enemy_appear'; enemyId: string; name: string; kind: EnemyKind; element: Element }
+  | { type: 'boss_intro'; enemyName: string }
+  | { type: 'combat_start'; enemyName: string }
+  | { type: 'attack'; source: 'pet' | 'enemy' | 'environment'; target: 'pet' | 'enemy'; actor: string; skill: string; amount: number; critical: boolean; strongHit: boolean; flavor: 'skill' | 'burn' | 'thorn' | 'environment' }
+  | { type: 'miss'; source: 'pet' | 'enemy'; actor: string; reason: 'stunned' | 'steady' }
+  | { type: 'heal'; target: 'pet'; amount: number }
+  | { type: 'buff_applied'; target: 'pet' | 'enemy'; stat?: StatKey; amount: number; multiplier?: number; turns: number }
+  | { type: 'status_applied'; target: 'pet' | 'enemy'; status: CombatStatusType; stat?: StatKey; turns: number }
+  | { type: 'item_used'; name: string }
+  | { type: 'chest_open'; coins: number; tokenFound: boolean }
+  | { type: 'loot_drop'; kind: 'token' | 'gear' | 'essence' | 'scrap'; lootId?: string; name?: string; amount?: number; rarity?: ItemRarity }
+  | { type: 'room_story'; roomType: 'event' | 'treasure' | 'rest' | 'shop'; title: string }
+  | { type: 'victory'; enemyName: string }
+  | { type: 'boss_phase'; enemyName: string }
+  | { type: 'floor_cleared'; floor: number }
+  | { type: 'run_complete'; result: 'left'; floor: number }
+  | { type: 'faint'; floor: number }
+  | { type: 'return_home' };
+
+export type StageVisualEvent = StageEventPayload & { id: number };
+
 export type WorkerInMessage =
   | { type: 'load'; state: GameState; startPaused: boolean }
   | { type: 'tick'; dtMs: number }
@@ -344,7 +368,7 @@ export type WorkerInMessage =
   | { type: 'save'; requestId: number };
 
 export type WorkerOutMessage =
-  | { type: 'snapshot'; state: GameState }
+  | { type: 'snapshot'; state: GameState; events?: StageVisualEvent[] }
   | { type: 'action-result'; result: Omit<ActionResult, 'state'> }
   | { type: 'signals'; needs: NeedKey[] }
   | { type: 'save'; requestId: number; state: GameState };
