@@ -5,6 +5,7 @@ import { createInitialState, getMood, getNeedSignals } from './core/game';
 import type { GameAction, GameState, HomeUpgradeId, NeedKey, StageVisualEvent, StatKey, WorkerOutMessage } from './core/types';
 import { getStageSceneKind, StageSceneRenderer, stageCaption, stageLocation } from './render/stage/scene';
 import { StageEventPlayer, stageEventCaption, type AnimationSpeed } from './render/stage/event-player';
+import { PhaserStageAdapter } from './render/stage/phaser-stage';
 import { playSound, type SoundKind } from './platform/audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
@@ -62,6 +63,12 @@ declare global {
       };
       setSpeed: (speed: AnimationSpeed) => void;
       setSeed: (seed: number) => void;
+      getStageRenderer: () => {
+        type: 'phaser' | 'fallback';
+        ready: boolean;
+        failed: boolean;
+        canvasAttached: boolean;
+      };
     };
   }
 }
@@ -432,6 +439,7 @@ root.innerHTML = `
 `;
 
 const canvas = must<HTMLCanvasElement>('#pet-scene');
+const stageEngine = new PhaserStageAdapter(canvas, stageRenderer);
 const overlay = must<HTMLDivElement>('#pause-overlay');
 const saveStatus = must<HTMLSpanElement>('#save-status');
 const signalCopy = must<HTMLSpanElement>('#signal-copy');
@@ -534,7 +542,7 @@ if (import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') {
         dungeon: { ...state.dungeon, activeRun: null },
       };
       stageEventPlayer.reset();
-      stageRenderer.clear(canvas);
+      stageEngine.clear();
       combatFrameTotalMs = 0;
       combatFrameSamples = 0;
       combatFrameIntervalsMs = [];
@@ -548,6 +556,7 @@ if (import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') {
       worker.postMessage({ type: 'load', state: seededState, startPaused: false });
       updateControls(seededState);
     },
+    getStageRenderer: () => stageEngine.status,
   };
 }
 
@@ -1742,8 +1751,7 @@ function startLoop(now: number): void {
     if (isVisible || miniMode.kind === 'video') {
       const frame = stageEventPlayer.frame();
       const renderStartedAt = performance.now();
-      stageRenderer.update(state, now / 1000, prefersReducedMotion.matches, frame, stageEventPlayer.hasBattleSequence());
-      stageRenderer.draw(canvas);
+      stageEngine.render(state, now / 1000, prefersReducedMotion.matches, frame, stageEventPlayer.hasBattleSequence());
       const renderDurationMs = performance.now() - renderStartedAt;
       const visualState = stageRenderer.visualState() ?? state;
       const isCombatFrame = state.dungeon.activeRun?.phase === 'combat' && !state.paused;
@@ -1777,9 +1785,16 @@ function startLoop(now: number): void {
 renderNeedList();
 renderFoodActions();
 applyControlSettings();
-const stageResizeObserver = new ResizeObserver(() => stageRenderer.resize(canvas));
+const stageResizeObserver = new ResizeObserver(() => stageEngine.resize());
 stageResizeObserver.observe(canvas);
-stageRenderer.resize(canvas);
+stageEngine.resize();
+window.addEventListener('pagehide', () => {
+  stageResizeObserver.disconnect();
+  stageEngine.dispose();
+}, { once: true });
+void stageEngine.boot().catch((error: unknown) => {
+  console.error('Pocket Pal stage engine could not start.', error);
+});
 root.classList.toggle('crt-on', crtOn);
 must<HTMLButtonElement>('#settings-open').addEventListener('click', () => settingsDialog.showModal());
 must<HTMLButtonElement>('#settings-close').addEventListener('click', () => settingsDialog.close());

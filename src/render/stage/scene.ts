@@ -424,11 +424,11 @@ export class StageSceneRenderer {
     this.eventFrame = null;
   }
 
-  resize(canvas: HTMLCanvasElement): void {
+  resize(canvas: HTMLCanvasElement, cssWidth?: number, cssHeight?: number): void {
     if (canvas.width !== WIDTH) canvas.width = WIDTH;
     if (canvas.height !== HEIGHT) canvas.height = HEIGHT;
-    this.cssWidth = canvas.clientWidth || WIDTH;
-    this.cssHeight = canvas.clientHeight || HEIGHT;
+    this.cssWidth = cssWidth ?? (canvas.clientWidth || WIDTH);
+    this.cssHeight = cssHeight ?? (canvas.clientHeight || HEIGHT);
     const context = canvas.getContext('2d');
     if (context) context.imageSmoothingEnabled = false;
   }

@@ -68,7 +68,7 @@ node scripts/simulate-balance.mjs 2000
 npm run preview
 ```
 
-The app is vanilla TypeScript and Canvas 2D. There are no runtime package dependencies. The simulation lives in a Web Worker; IndexedDB stores the versioned save, with localStorage as a fallback. The bundled Press Start 2P font is under the SIL Open Font License; its license is in `LICENSES/`.
+The app uses vanilla TypeScript with a lazily imported Phaser 3.90 stage. Menus, status, actions, and the detail sheet remain DOM UI. In this first engine-migration release, the existing renderer paints a compatibility texture and Phaser presents it on the original stage canvas; the next milestone replaces that texture with sourced atlas sprites. Until Phaser is ready, or if loading fails, the direct renderer keeps the stage visible. The simulation and its seeded RNG stay in the Web Worker; presentation consumes the existing ordered event queue without changing outcomes. IndexedDB stores the versioned save, with localStorage as a fallback. Phaser's separate chunk is included by the service worker's generated-file precache. The bundled Press Start 2P font is under the SIL Open Font License; its license is in `LICENSES/`.
 
 ## Deploy to GitHub Pages
 
