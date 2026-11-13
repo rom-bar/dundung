@@ -10,12 +10,28 @@ import { attachTouchControls } from './platform/touch-controls';
 import { createMiniMode } from './platform/mini-mode';
 import { getAllForms, getEffectiveStats, getFormDefinition, getLevelCap, getTraitList, xpToNextLevel } from './core/progression';
 import { getBiomeForFloor, getDungeonData } from './core/dungeon';
-import type { DungeonRoomType, DungeonRunState } from './core/types';
+import {
+  equipmentItemsHaveSameSlotAndRarity,
+  getAffixDefinition,
+  getEquipmentCombatEffects,
+  getEquipmentRules,
+  getEquipmentSetCounts,
+  getItemPreview,
+  getItemTemplate,
+  getScrapValue,
+  getSetDefinition,
+  shouldAutoScrap,
+  getUpgradeCost,
+  getUpgradeSuccessChance,
+  nextFusionRarity,
+} from './core/equipment';
+import type { AutoScrapThreshold, DungeonRoomType, DungeonRunState, EquipmentItem, EquipmentSlot, ItemRarity } from './core/types';
 import evolutions from './data/evolutions.json';
 import dungeonRules from './data/dungeon-rules.json';
 import './style.css';
 
 const dungeonData = getDungeonData();
+const equipmentRules = getEquipmentRules();
 const root = document.querySelector<HTMLDivElement>('#app');
 if (!root) throw new Error('Pocket Pal could not find its app root.');
 
@@ -61,6 +77,8 @@ let saveRequestId = 0;
 let pendingInstall: BeforeInstallPromptEvent | null = null;
 let installButton: HTMLButtonElement | null = null;
 let selectedDungeonPack: string[] = [];
+let selectedGearTab: 'loadout' | 'bag' | 'workshop' = 'loadout';
+let selectedFuseIds: string[] = [];
 
 root.innerHTML = `
   <div class="app-shell">
@@ -75,6 +93,9 @@ root.innerHTML = `
         </button>
         <button class="quiet-button" id="dungeon-open" type="button" aria-label="Dungeon" aria-haspopup="dialog" aria-controls="dungeon-dialog" data-testid="dungeon-open" disabled>
           <span class="button-icon" aria-hidden="true">⌁</span><span>Dungeon</span>
+        </button>
+        <button class="quiet-button" id="gear-open" type="button" aria-label="Gear and workshop" aria-haspopup="dialog" aria-controls="gear-dialog" data-testid="gear-open">
+          <span class="button-icon" aria-hidden="true">◇</span><span>Gear</span>
         </button>
         <button class="quiet-button" id="forms-open" type="button" aria-label="Forms" aria-haspopup="dialog" aria-controls="dex-dialog" data-testid="forms-open">
           <span class="button-icon" aria-hidden="true">✧</span><span>Forms</span>
@@ -226,6 +247,19 @@ root.innerHTML = `
       <div class="form-grid" id="form-grid" role="region" tabindex="0" aria-label="Form collection; scroll to browse all forms"></div>
       <section class="hall-section" aria-labelledby="hall-title"><h3 id="hall-title">Hall of Pets</h3><div id="hall-list"></div></section>
     </dialog>
+    <dialog class="settings-dialog gear-dialog" id="gear-dialog" aria-labelledby="gear-title">
+      <div class="settings-heading gear-heading">
+        <div><p class="eyebrow">A little room for good finds</p><h2 id="gear-title">Gear & workshop</h2></div>
+        <button class="dialog-close" id="gear-close" type="button" aria-label="Close gear and workshop">×</button>
+      </div>
+      <div class="gear-wallet" id="gear-wallet" aria-label="Gear currencies"></div>
+      <div class="gear-tabs" role="tablist" aria-label="Gear sections">
+        <button class="gear-tab" type="button" role="tab" data-gear-tab="loadout" aria-selected="true">Loadout</button>
+        <button class="gear-tab" type="button" role="tab" data-gear-tab="bag" aria-selected="false">Bag</button>
+        <button class="gear-tab" type="button" role="tab" data-gear-tab="workshop" aria-selected="false">Workshop</button>
+      </div>
+      <div class="gear-content" id="gear-content" aria-live="polite"></div>
+    </dialog>
     <dialog class="settings-dialog minigame-dialog" id="minigame-dialog" aria-labelledby="minigame-title">
       <div class="settings-heading">
         <div><p class="eyebrow">A little practice goes a long way</p><h2 id="minigame-title">Training games</h2></div>
@@ -267,6 +301,8 @@ const hapticsInput = must<HTMLInputElement>('#haptics-toggle');
 const controlOpacityInput = must<HTMLInputElement>('#control-opacity');
 const controlOpacityValue = must<HTMLOutputElement>('#control-opacity-value');
 const dexDialog = must<HTMLDialogElement>('#dex-dialog');
+const gearDialog = must<HTMLDialogElement>('#gear-dialog');
+const gearContent = must<HTMLDivElement>('#gear-content');
 const dungeonDialog = must<HTMLDialogElement>('#dungeon-dialog');
 const dungeonContent = must<HTMLDivElement>('#dungeon-content');
 const minigameDialog = must<HTMLDialogElement>('#minigame-dialog');
@@ -440,6 +476,161 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
 }
 
+function describeGearEffect(effect: { type: string; stat?: string; element?: string; status?: string; chance?: number; value?: number; baseValue?: number }): string {
+  const value = effect.baseValue ?? effect.value ?? 0;
+  const percent = `${Math.round(value * 100)}%`;
+  if (effect.type === 'flat-stat') return `+${value} ${effect.stat ?? 'stat'}`;
+  if (effect.type === 'percent-stat') return `+${percent} ${effect.stat ?? 'stat'}`;
+  if (effect.type === 'crit') return `+${percent} critical chance`;
+  if (effect.type === 'lifesteal') return `${percent} life returned`;
+  if (effect.type === 'element-damage') return `+${percent} ${effect.element ?? 'element'} damage`;
+  if (effect.type === 'food-effectiveness') return `+${percent} snack boost`;
+  if (effect.type === 'coin-find') return `+${percent} coins found`;
+  if (effect.type === 'resist') return `${percent} ${effect.element ?? 'all'} resistance`;
+  if (effect.type === 'thorns') return `${percent} damage returned`;
+  if (effect.type === 'on-hit-status') return `${Math.round((effect.chance ?? 0) * 100)}% chance to ${effect.status ?? 'affect'} (${value})`;
+  return 'A small gear bonus';
+}
+
+function renderItemComparison(item: EquipmentItem, slot: EquipmentSlot, current: GameState): string {
+  const before = getEffectiveStats(current);
+  const after = getEffectiveStats({
+    ...current,
+    equipment: { ...current.equipment, equipped: { ...current.equipment.equipped, [slot]: item } },
+  });
+  return `<div class="gear-comparison" aria-label="Stats compared with current ${slot.toLowerCase()}">${(Object.keys(statLabels) as StatKey[]).map((key) => {
+    const delta = after[key] - before[key];
+    return `<span><small>${key}</small><strong>${delta >= 0 ? '+' : ''}${delta}</strong></span>`;
+  }).join('')}</div>`;
+}
+
+function renderGearItem(item: EquipmentItem, current: GameState, options: {
+  compareSlot?: EquipmentSlot;
+  showEquip?: boolean;
+  showUnequip?: EquipmentSlot;
+  showScrap?: boolean;
+  showUpgrade?: boolean;
+  showFuse?: boolean;
+  equipped?: boolean;
+} = {}): string {
+  const template = getItemTemplate(item.templateId);
+  const preview = getItemPreview(item);
+  if (!template || !preview) return '';
+  const stats = (Object.keys(statLabels) as StatKey[])
+    .filter((key) => (preview.stats[key] ?? 0) > 0)
+    .map((key) => `<span>${key} <strong>+${Math.round(preview.stats[key] ?? 0)}</strong></span>`);
+  if (preview.critChance > 0) stats.push(`<span>Crit <strong>+${Math.round(preview.critChance * 100)}%</strong></span>`);
+  const affixes = preview.affixes.map((affix) => {
+    const definition = getAffixDefinition(affix.id);
+    return `<li><strong>${escapeHtml(definition?.name ?? affix.name)}</strong><span>${escapeHtml(describeGearEffect({ ...affix.effect, value: affix.value }))}</span></li>`;
+  });
+  if (preview.uniqueEffect) affixes.push(`<li class="is-unique"><strong>${escapeHtml(preview.uniqueEffect.name)}</strong><span>${escapeHtml(describeGearEffect(preview.uniqueEffect.effect))}</span></li>`);
+  const controls: string[] = [];
+  if (options.showEquip) controls.push(`<button class="gear-action" type="button" data-gear-action="equip" data-instance-id="${escapeHtml(item.instanceId)}" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>Equip</button>`);
+  if (options.showUnequip) controls.push(`<button class="gear-action" type="button" data-gear-action="unequip" data-slot="${options.showUnequip}" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>Unequip</button>`);
+  if (options.showScrap) controls.push(`<button class="gear-action is-quiet" type="button" data-gear-action="scrap" data-instance-id="${escapeHtml(item.instanceId)}" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>Scrap · ${getScrapValue(item)}</button>`);
+  if (options.showUpgrade) {
+    const cost = getUpgradeCost(item.upgradeLevel);
+    const chance = getUpgradeSuccessChance(item.upgradeLevel + 1);
+    controls.push(`<button class="gear-action" type="button" data-gear-action="upgrade" data-instance-id="${escapeHtml(item.instanceId)}" ${current.paused || current.dungeon.activeRun || item.upgradeLevel >= equipmentRules.upgrades.maximumLevel || current.dungeon.scrap < cost ? 'disabled' : ''}>Upgrade to +${item.upgradeLevel + 1} · ${cost} Scrap${chance < 1 ? ` · ${Math.round(chance * 100)}%` : ''}</button>`);
+  }
+  if (options.showFuse) {
+    controls.push(`<label class="gear-fuse-select"><input type="checkbox" data-fuse-item value="${escapeHtml(item.instanceId)}" ${selectedFuseIds.includes(item.instanceId) ? 'checked' : ''} ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}><span>Choose to fuse</span></label>`);
+  }
+  const comparison = options.compareSlot ? renderItemComparison(item, options.compareSlot, current) : '';
+  return `<article class="gear-card" data-rarity="${item.rarity}" data-testid="gear-card-${escapeHtml(item.instanceId)}">
+    <div class="gear-card-top"><span class="gear-rarity">${item.rarity}</span><span class="gear-slot">${template.slot}</span></div>
+    <h4>${escapeHtml(template.name)}</h4>
+    <p class="gear-level">Item Lv ${item.ilvl} · ${item.upgradeLevel > 0 ? `+${item.upgradeLevel}` : 'Unupgraded'}${options.equipped ? ' · Equipped' : ''}</p>
+    <div class="gear-stat-lines">${stats.join('') || '<span>Steady little find</span>'}</div>
+    ${affixes.length ? `<ul class="gear-affixes">${affixes.join('')}</ul>` : '<p class="gear-no-affix">No extra affix</p>'}
+    ${comparison}
+    ${controls.length ? `<div class="gear-card-actions">${controls.join('')}</div>` : ''}
+  </article>`;
+}
+
+function renderGearWallet(current: GameState): void {
+  const wallet = must<HTMLDivElement>('#gear-wallet');
+  wallet.innerHTML = `<span><small>Coins</small><strong>${current.dungeon.coins}</strong></span><span><small>Scrap</small><strong>${current.dungeon.scrap}</strong></span><span><small>Essence</small><strong>${current.dungeon.essence}</strong></span><span><small>Stones</small><strong>${current.evolution.evolutionStones}</strong></span>`;
+}
+
+function renderGearLoadout(current: GameState): string {
+  const slots: EquipmentSlot[] = ['Weapon', 'Armor', 'Hat', 'Charm'];
+  const slotCards = slots.map((slot) => {
+    const item = current.equipment.equipped[slot];
+    const candidates = current.equipment.inventory.filter((candidate) => getItemTemplate(candidate.templateId)?.slot === slot);
+    return `<section class="gear-slot-panel"><div class="gear-slot-heading"><h3>${slot}</h3><span>${item ? 'Worn by Pip' : 'Empty slot'}</span></div>
+      ${item ? renderGearItem(item, current, { showUnequip: slot, showUpgrade: true, equipped: true }) : '<p class="gear-empty-slot">A good find can live here.</p>'}
+      ${candidates.length ? `<div class="gear-candidates"><h4>Try on</h4>${candidates.map((candidate) => renderGearItem(candidate, current, { compareSlot: slot, showEquip: true, showScrap: true })).join('')}</div>` : ''}
+    </section>`;
+  }).join('');
+  const stats = getEffectiveStats(current);
+  const sets = Object.entries(getEquipmentSetCounts(current.equipment)).map(([setId, count]) => {
+    const set = getSetDefinition(setId);
+    if (!set) return '';
+    const pieces = count >= 4 ? 4 : count >= 2 ? 2 : 0;
+    const effects = pieces ? set.bonuses[String(pieces) as '2' | '4'].map((effect) => describeGearEffect(effect)).join(' · ') : 'Find more pieces to wake the set.';
+    return `<div class="gear-set-line"><strong>${escapeHtml(set.name)}</strong><span>${count} / 4 pieces</span><small>${pieces ? `${pieces}-piece bonus: ${escapeHtml(effects)}` : escapeHtml(effects)}</small></div>`;
+  }).join('');
+  const combat = getEquipmentCombatEffects(current.equipment, getFormDefinition(current.evolution.formId)?.element ?? 'fire');
+  return `<section class="gear-overview"><div><p class="eyebrow">Pip's current kit</p><h3>Every little piece counts.</h3></div><div class="gear-stat-ribbon">${(Object.keys(statLabels) as StatKey[]).map((key) => `<span><small>${key}</small><strong>${stats[key]}</strong></span>`).join('')}</div>
+    <p class="gear-bonus-note">Gear: ${Math.round(combat.critChance * 100)}% crit · ${Math.round(combat.lifesteal * 100)}% life return · ${Math.round(combat.resist * 100)}% resistance · +${Math.round(combat.coinFind * 100)}% coins</p></section>
+    <section class="gear-set-shelf" aria-labelledby="gear-sets-title"><h3 id="gear-sets-title">Set marks</h3>${sets || '<p>Matching pieces share a set mark. Two pieces and four pieces wake a bonus.</p>'}</section>
+    <div class="gear-loadout-grid">${slotCards}</div>
+    ${current.dungeon.activeRun ? '<p class="gear-lock-note">Gear is locked until the current run ends.</p>' : ''}`;
+}
+
+function renderGearBag(current: GameState): string {
+  const selected = current.equipment.inventory.filter((item) => selectedFuseIds.includes(item.instanceId));
+  const matching = selected.length === equipmentRules.fusion.inputCount && equipmentItemsHaveSameSlotAndRarity(selected);
+  const nextRarity = matching ? nextFusionRarity(selected[0]!.rarity) : null;
+  const commonInputs = matching && selected[0]!.rarity === 'Common';
+  const availableAffixes = [...new Map(selected.flatMap((item) => getItemPreview(item)?.affixes ?? []).map((affix) => [affix.id, affix])).values()];
+  const keepAffix = gearContent.querySelector<HTMLSelectElement>('#fusion-affix')?.value ?? '';
+  const canFuse = Boolean(matching && nextRarity && (commonInputs || availableAffixes.some((affix) => affix.id === keepAffix)) && !current.paused && !current.dungeon.activeRun);
+  const runItems = current.dungeon.activeRun?.pendingItems ?? [];
+  const fusionPanel = `<section class="gear-fusion-panel"><div><p class="eyebrow">Three become one</p><h3>Fusion</h3><p>Choose three items of the same slot and rarity. Common gear rolls a new affix; higher rarities keep one you choose.</p></div>
+    <p class="fusion-count" aria-live="polite">${selected.length} / ${equipmentRules.fusion.inputCount} selected</p>
+    ${matching && nextRarity && !commonInputs ? `<label class="gear-field" for="fusion-affix">Keep an affix<select id="fusion-affix"><option value="">Choose an affix</option>${availableAffixes.map((affix) => `<option value="${escapeHtml(affix.id)}" ${keepAffix === affix.id ? 'selected' : ''}>${escapeHtml(getAffixDefinition(affix.id)?.name ?? affix.name)}</option>`).join('')}</select></label>` : ''}
+    <button class="primary-button" type="button" data-gear-action="fuse" ${canFuse ? '' : 'disabled'}>${nextRarity ? `Fuse into ${nextRarity}` : 'Choose three matching items'}</button>
+    ${selected.length === equipmentRules.fusion.inputCount && !matching ? '<small>Those items do not share a slot and rarity.</small>' : ''}
+  </section>`;
+  const items = current.equipment.inventory.map((item) => renderGearItem(item, current, { showEquip: true, showScrap: true, showFuse: true })).join('');
+  const autoScrapOptions: Array<ItemRarity | 'off'> = ['off', ...equipmentRules.fusion.rarityOrder];
+  const runGearShelf = current.dungeon.activeRun ? `<section class="run-gear-shelf"><div class="gear-slot-heading"><h3>Carried this run</h3><span>${runItems.length} item${runItems.length === 1 ? '' : 's'}</span></div><p class="gear-bag-hint">These finds are still at risk until you safely bank or salvage them at the end of a run.</p>${runItems.length ? `<div class="run-gear-list">${runItems.map((item) => renderGearItem(item, current)).join('')}</div>` : '<p class="gear-empty-slot">No gear carried yet. Shop buys and drops appear here until the run ends.</p>'}</section>` : '';
+  return `<section class="gear-bag-head"><div><p class="eyebrow">A little shelf for finds</p><h3>Your bag</h3></div><span>${current.equipment.inventory.length} / ${equipmentRules.inventory.capacity}</span>
+    <label class="gear-field" for="auto-scrap-select">Auto-scrap new drops<select id="auto-scrap-select" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>${autoScrapOptions.map((value) => `<option value="${value}" ${current.equipment.autoScrapThrough === value ? 'selected' : ''}>${value === 'off' ? 'Off' : `Through ${value}`}</option>`).join('')}</select></label></section>
+    ${current.equipment.inventory.length ? '<p class="gear-bag-hint">Pick an item to equip it, or scrap it for upgrade material. Select three matching pieces to fuse.</p>' : '<p class="gear-empty-bag">Your bag is quiet for now. Elites, bosses and treasure rooms can leave gear behind.</p>'}
+    ${items ? `<div class="gear-bag-grid">${items}</div>` : ''}${fusionPanel}${runGearShelf}
+    ${current.dungeon.activeRun ? '<p class="gear-lock-note">Bag changes are locked until the current run ends.</p>' : ''}`;
+}
+
+function renderGearWorkshop(current: GameState): string {
+  const items = [
+    ...current.equipment.inventory.map((item) => ({ item, equipped: false })),
+    ...Object.values(current.equipment.equipped).filter((item): item is EquipmentItem => item !== null).map((item) => ({ item, equipped: true })),
+  ];
+  const essenceCost = equipmentRules.currencies.essencePerEvolutionStone;
+  const workshopCards = items.map(({ item, equipped }) => renderGearItem(item, current, { showUpgrade: true, equipped })).join('');
+  return `<section class="workshop-intro"><p class="eyebrow">A careful tune-up</p><h3>Help a good find grow.</h3><p>Upgrades add 8% per level. Attempts through +5 always work; later misses drop one level, never destroy the item.</p></section>
+    <section class="stone-crafting"><div><strong>Evolution Stone</strong><small>Trade ${essenceCost} Essence for one reroll stone.</small></div><button class="gear-action" type="button" data-gear-action="craft-stone" ${current.paused || current.dungeon.activeRun || current.dungeon.essence < essenceCost ? 'disabled' : ''}>Craft · ${essenceCost} Essence</button></section>
+    ${workshopCards ? `<div class="gear-workshop-grid">${workshopCards}</div>` : '<p class="gear-empty-bag">Bring a piece of gear back from a run to begin upgrading it.</p>'}
+    <button class="quiet-button" type="button" data-gear-tab="bag">Choose three items to fuse</button>
+    ${current.dungeon.activeRun ? '<p class="gear-lock-note">Workshop actions are locked until the current run ends.</p>' : ''}`;
+}
+
+function renderEquipment(current: GameState): void {
+  const availableIds = new Set(current.equipment.inventory.map((item) => item.instanceId));
+  selectedFuseIds = selectedFuseIds.filter((id) => availableIds.has(id));
+  renderGearWallet(current);
+  gearDialog.querySelectorAll<HTMLButtonElement>('[data-gear-tab]').forEach((tab) => {
+    tab.setAttribute('aria-selected', String(tab.dataset.gearTab === selectedGearTab));
+  });
+  if (selectedGearTab === 'loadout') gearContent.innerHTML = renderGearLoadout(current);
+  else if (selectedGearTab === 'bag') gearContent.innerHTML = renderGearBag(current);
+  else gearContent.innerHTML = renderGearWorkshop(current);
+}
+
 function healthMeter(label: string, value: number, maximum: number, kind: string): string {
   const percent = Math.max(0, Math.min(100, Math.round((value / Math.max(1, maximum)) * 100)));
   return `<div class="dungeon-meter dungeon-meter-${kind}" role="progressbar" aria-label="${escapeHtml(label)}" aria-valuemin="0" aria-valuemax="${Math.round(maximum)}" aria-valuenow="${Math.round(value)}"><span style="width:${percent}%"></span><small>${escapeHtml(label)} · ${Math.round(value)} / ${Math.round(maximum)}</small></div>`;
@@ -449,9 +640,9 @@ const roomPresentation: Record<DungeonRoomType, { title: string; detail: string;
   fight: { title: 'Skirmish', detail: 'A quick auto-fight and a handful of coins.', mark: '✦' },
   elite: { title: 'Elite', detail: 'A tougher foe with a brighter reward.', mark: '◆' },
   event: { title: 'Event', detail: 'Choose a little risk or a little reward.', mark: '☼' },
-  treasure: { title: 'Treasure', detail: 'Open a chest for run coins and a chance at a token.', mark: '▣' },
+  treasure: { title: 'Treasure', detail: 'Open a chest for run coins, a token chance and a gear find.', mark: '▣' },
   rest: { title: 'Rest', detail: 'Restore health and a little energy.', mark: '☾' },
-  shop: { title: 'Shop', detail: 'Spend run coins on a pack item.', mark: '⌂' },
+  shop: { title: 'Shop', detail: 'Spend run coins on a pack tonic or gear.', mark: '⌂' },
   boss: { title: 'Boss', detail: 'A single room with a two-part challenge.', mark: '♛' },
 };
 
@@ -479,8 +670,8 @@ function renderDungeonStart(current: GameState): string {
       : 'Choose up to three run-only items. Unused items leave with the run.';
   return `<div class="dungeon-start-grid">
     <section class="dungeon-start-story"><p class="eyebrow">A new route every time</p><h3>Make a small plan, then see how far Pip can go.</h3><p>${escapeHtml(reason)}</p>
-      <div class="dungeon-records"><span><strong>${current.dungeon.coins}</strong><small>banked coins</small></span><span><strong>${current.dungeon.petDeepestFloor}</strong><small>this pet's best floor</small></span><span><strong>${current.dungeon.deepestFloor}</strong><small>all-time best</small></span></div>
-      <p class="dungeon-note">Coins and treasure are banked when Pip leaves or faints. Fainting keeps half the coins and a random half of the tokens.</p>
+      <div class="dungeon-records"><span><strong>${current.dungeon.coins}</strong><small>banked coins</small></span><span><strong>${current.dungeon.scrap}</strong><small>Scrap</small></span><span><strong>${current.dungeon.essence}</strong><small>Essence</small></span><span><strong>${current.dungeon.petDeepestFloor}</strong><small>this pet's best floor</small></span></div>
+      <p class="dungeon-note">Leave safely to bank all carried gear and materials. Fainting keeps half the coins, random half the gear and half the materials.</p>
     </section>
     <section class="pack-picker" aria-labelledby="pack-title"><div class="dungeon-section-heading"><div><p class="eyebrow">Before the first step</p><h3 id="pack-title">Pack up to 3 items</h3></div><span class="pack-count" id="pack-count">0 / 3</span></div>
       <div class="pack-choice-list">${items}</div>
@@ -544,30 +735,40 @@ function renderDungeon(current: GameState): void {
     const enemyGauge = Math.min(100, Math.round((enemy.gauge / dungeonRules.actionGauge) * 100));
     const petGauge = Math.min(100, Math.round((run.petGauge / dungeonRules.actionGauge) * 100));
     stage = `<section class="dungeon-fight" data-testid="dungeon-fight"><p class="eyebrow">Auto-fight · Floor ${run.floor}</p><div class="combat-versus"><div class="combatant combatant-pet"><span class="combatant-mark" aria-hidden="true">✦</span><strong>Pip</strong>${healthMeter('Pip health', run.petHp, run.petMaxHp, 'pet')}<div class="gauge-track" role="progressbar" aria-label="Pip action gauge" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${petGauge}"><span style="width:${petGauge}%"></span><small>Next move</small></div></div><span class="versus-mark" aria-hidden="true">✕</span><div class="combatant combatant-enemy"><span class="combatant-mark" aria-hidden="true">${roomPresentation[enemy.kind].mark}</span><strong>${escapeHtml(enemy.name)}</strong>${healthMeter(`${enemy.name} health`, enemy.hp, enemy.maxHp, 'enemy')}<div class="gauge-track gauge-enemy" role="progressbar" aria-label="${escapeHtml(enemy.name)} action gauge" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${enemyGauge}"><span style="width:${enemyGauge}%"></span><small>Next move</small></div></div></div><div class="combat-effect-row">${run.petStatuses.map((status) => `<span class="effect-chip">${status.type === 'buff' ? `${status.stat} boost` : status.type} · ${status.turns}</span>`).join('')}${enemy.phaseTwoTriggered ? '<span class="effect-chip is-boss">New boss move</span>' : ''}</div><ol class="combat-log" role="log" aria-label="Combat log" aria-live="polite">${run.combatLog.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ol><p class="dungeon-body-copy">The gauges fill from speed. Care still matters while Pip is inside.</p></section>`;
+  } else if (run.phase === 'loot' && run.pendingItem) {
+    const item = run.pendingItem;
+    const slot = getItemTemplate(item.templateId)?.slot ?? 'Weapon';
+    stage = `<section class="dungeon-decision loot-scene"><p class="eyebrow">A new find</p><h3>${item.rarity} gear from the path</h3>${renderGearItem(item, current, { compareSlot: slot })}<p class="dungeon-body-copy">Take it in the run bag, turn it into Scrap now, or leave it behind. Run gear is banked only when the run ends.</p><div class="loot-actions"><button class="primary-button" type="button" data-run-action="take-drop">Take gear</button><button class="quiet-button" type="button" data-run-action="scrap-drop">Scrap · ${getScrapValue(item)}</button><button class="quiet-button" type="button" data-run-action="leave-drop">Leave it</button></div></section>`;
   } else if (run.phase === 'event' && run.eventId) {
     const event = dungeonData.events.find((item) => item.id === run.eventId);
     stage = event ? `<section class="dungeon-decision event-scene"><p class="eyebrow">A small story on the path</p><h3>${escapeHtml(event.title)}</h3><p class="dungeon-body-copy">${escapeHtml(event.description)}</p><div class="event-options">${event.options.map((option) => `<button class="event-option" type="button" data-run-action="event" data-option-id="${escapeHtml(option.id)}"><strong>${escapeHtml(option.label)}</strong><small>${Math.round(option.successChance * 100)}% chance to go well</small></button>`).join('')}</div></section>` : '';
   } else if (run.phase === 'treasure') {
-    stage = `<section class="dungeon-decision room-interlude"><span class="interlude-mark" aria-hidden="true">▣</span><p class="eyebrow">A quiet glimmer</p><h3>Treasure room</h3><p class="dungeon-body-copy">Open a small chest for run coins and a chance to find a token. Tokens become coins when the run ends.</p><button class="primary-button" type="button" data-run-action="treasure">Open treasure</button></section>`;
+    stage = `<section class="dungeon-decision room-interlude"><span class="interlude-mark" aria-hidden="true">▣</span><p class="eyebrow">A quiet glimmer</p><h3>Treasure room</h3><p class="dungeon-body-copy">Open the chest for run coins, a chance at a token, and one gear find. Tokens become coins when the run ends.</p><button class="primary-button" type="button" data-run-action="treasure">Open treasure</button></section>`;
   } else if (run.phase === 'rest') {
     stage = `<section class="dungeon-decision room-interlude"><span class="interlude-mark" aria-hidden="true">☾</span><p class="eyebrow">Take a breath</p><h3>Rest stop</h3><p class="dungeon-body-copy">Restore ${Math.round(run.petMaxHp * dungeonRules.restHealPercent)} health and ${dungeonRules.restEnergyRestore} energy before continuing.</p><button class="primary-button" type="button" data-run-action="rest">Rest here</button></section>`;
   } else if (run.phase === 'shop') {
-    stage = `<section class="dungeon-decision"><p class="eyebrow">Traveling shop · ${run.coins} run coins</p><h3>Choose a useful little thing</h3><div class="shop-list">${run.shopOfferIds.map((id) => {
+    const consumableShelf = run.shopOfferIds.map((id) => {
       const item = dungeonData.consumables.find((candidate) => candidate.id === id);
       if (!item) return '';
       return `<div class="shop-item"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description)}</small></span><button class="shop-buy" type="button" data-run-action="buy" data-consumable-id="${escapeHtml(item.id)}" ${run.consumables.length >= dungeonRules.packSlots || run.coins < item.price ? 'disabled' : ''}>${item.price} coins</button></div>`;
-    }).join('') || '<p class="pack-empty">The shelf is empty. Move on when you are ready.</p>'}</div><button class="quiet-button continue-room" type="button" data-run-action="continue-shop">Leave the shop</button></section>`;
+    }).join('');
+    const gearShelf = run.shopEquipmentOffers.map((offer) => {
+      const full = current.equipment.inventory.length + run.pendingItems.length >= equipmentRules.inventory.capacity;
+      const autoScrap = shouldAutoScrap(offer.item, current.equipment.autoScrapThrough);
+      return `<div class="shop-gear-offer">${renderGearItem(offer.item, current)}<button class="shop-buy" type="button" data-run-action="buy-gear" data-offer-id="${escapeHtml(offer.id)}" ${full || autoScrap || run.pendingItems.length >= equipmentRules.inventory.pendingItemsPerRunCap || run.coins < offer.price ? 'disabled' : ''}>${offer.price} coins · add to bag</button></div>`;
+    }).join('');
+    stage = `<section class="dungeon-decision"><p class="eyebrow">Traveling shop · ${run.coins} run coins</p><h3>Choose a useful little thing</h3><h4 class="shop-shelf-title">Pack tonics</h4><div class="shop-list">${consumableShelf || '<p class="pack-empty">No tonics left on this shelf.</p>'}</div><h4 class="shop-shelf-title">Gear finds</h4><div class="shop-gear-list">${gearShelf || '<p class="pack-empty">No gear left on this shelf.</p>'}</div><button class="quiet-button continue-room" type="button" data-run-action="continue-shop">Leave the shop</button></section>`;
   } else if (run.phase === 'floor-end') {
     stage = `<section class="dungeon-decision floor-stop"><p class="eyebrow">A natural stopping point</p><h3>Floor ${run.floor} cleared</h3><p class="dungeon-body-copy">Pip has ${run.petHp} / ${run.petMaxHp} health. You can bank everything now, or descend to floor ${run.floor + 1}.</p><div class="floor-actions"><button class="primary-button" type="button" data-run-action="descend" data-testid="dungeon-descend">Descend to floor ${run.floor + 1}</button><button class="quiet-button leave-button" type="button" data-run-action="leave" data-testid="dungeon-leave">Leave and bank rewards</button></div></section>`;
   } else if (run.phase === 'summary') {
-    stage = `<section class="dungeon-decision run-summary" data-testid="dungeon-summary"><span class="interlude-mark ${run.result === 'fainted' ? 'is-fainted' : ''}" aria-hidden="true">${run.result === 'fainted' ? '♡' : '✦'}</span><p class="eyebrow">${run.result === 'fainted' ? 'A brave try' : 'Safe return'}</p><h3>${run.result === 'fainted' ? 'Pip is ready to rest' : 'The descent is complete'}</h3><p class="dungeon-body-copy">${run.result === 'fainted' ? `Pip reached floor ${run.floor} and came back exhausted.` : `Pip reached floor ${run.floor} and returned safely.`} ${run.lostLootCount ? `${run.lostLootCount} treasure token${run.lostLootCount === 1 ? '' : 's'} were lost.` : ''}</p><div class="dungeon-records"><span><strong>+${run.bankedCoins}</strong><small>coins banked</small></span><span><strong>${run.bankedLootCount}</strong><small>tokens kept</small></span><span><strong>${current.dungeon.petDeepestFloor}</strong><small>this pet's best</small></span></div><button class="primary-button" type="button" data-run-action="close-summary" data-testid="dungeon-summary-close">Back to Pip</button></section>`;
+    stage = `<section class="dungeon-decision run-summary" data-testid="dungeon-summary"><span class="interlude-mark ${run.result === 'fainted' ? 'is-fainted' : ''}" aria-hidden="true">${run.result === 'fainted' ? '♡' : '✦'}</span><p class="eyebrow">${run.result === 'fainted' ? 'A brave try' : 'Safe return'}</p><h3>${run.result === 'fainted' ? 'Pip is ready to rest' : 'The descent is complete'}</h3><p class="dungeon-body-copy">${run.result === 'fainted' ? `Pip reached floor ${run.floor} and came back exhausted.` : `Pip reached floor ${run.floor} and returned safely.`} ${run.lostLootCount ? `${run.lostLootCount} treasure token${run.lostLootCount === 1 ? '' : 's'} were lost.` : ''} ${run.lostItemCount ? `${run.lostItemCount} gear item${run.lostItemCount === 1 ? '' : 's'} lost.` : ''}</p><div class="dungeon-records"><span><strong>+${run.bankedCoins}</strong><small>coins banked</small></span><span><strong>${run.bankedItemCount}</strong><small>gear banked</small></span><span><strong>${run.bankedScrap}</strong><small>Scrap banked</small></span><span><strong>${run.bankedEssence}</strong><small>Essence banked</small></span></div><button class="primary-button" type="button" data-run-action="close-summary" data-testid="dungeon-summary-close">Back to Pip</button></section>`;
   }
 
   dungeonContent.innerHTML = `<div class="dungeon-run-grid" style="--biome-accent:${escapeHtml(biome.accent)}">
     <section class="dungeon-map" aria-label="Floor map">
       <div class="biome-banner"><div><p class="eyebrow">Floor ${run.floor}</p><h3>${escapeHtml(biome.name)}</h3></div><span class="biome-sigil" aria-hidden="true">${evolutions.elements[biome.element].mark}</span></div>
       <ol class="dungeon-path" aria-label="${roomCount} room route">${nodes}</ol>
-      <div class="run-ledger"><span><small>Run coins</small><strong>${run.coins}</strong></span><span><small>Treasure</small><strong>${run.lootIds.length} token${run.lootIds.length === 1 ? '' : 's'}</strong></span><span><small>Wallet</small><strong>${current.dungeon.coins}</strong></span></div>
+      <div class="run-ledger"><span><small>Run coins</small><strong>${run.coins}</strong></span><span><small>Run gear</small><strong>${run.pendingItems.length + (run.pendingItem ? 1 : 0)}</strong></span><span><small>Run materials</small><strong>${run.pendingScrap} Scrap · ${run.pendingEssence} Essence</strong></span><span><small>Wallet</small><strong>${current.dungeon.coins} coins · ${current.dungeon.scrap} Scrap</strong></span></div>
       ${healthMeter('Pip health', run.petHp, run.petMaxHp, 'pet')}
       <div class="care-conditions"><span>Hunger ${Math.round(current.needs.hunger)}%</span><span>Energy ${Math.round(current.needs.energy)}%</span></div>
       ${modifiers.length ? `<div class="run-modifiers" aria-label="Run boons and curses">${modifiers.map((modifier) => `<span>${escapeHtml(modifier)}</span>`).join('')}</div>` : ''}
@@ -584,7 +785,7 @@ function renderFoodActions(): void {
     'moss-muffin': '▣',
   };
   grid.innerHTML = foods.map((food, index) => `
-    <button class="food-button" type="button" data-action="feed" data-food-id="${food.id}" data-testid="feed-${food.id}" aria-label="${food.name}. Feed Pip. ${food.description}" title="${food.description}">
+    <button class="food-button" type="button" data-action="feed" data-food-id="${food.id}" data-testid="feed-${food.id}" aria-label="${food.name}, ${index + 1}. Feed Pip. ${food.description}" title="${food.description}">
       <span class="food-mark food-mark-${index + 1}" aria-hidden="true">${marks[food.id] ?? '✦'}</span>
       <span class="food-name">${food.name}</span>
       <span class="food-hint">${index + 1}</span>
@@ -815,7 +1016,6 @@ function updateControls(current: GameState): void {
 
   must<HTMLSpanElement>('#sleep-label').textContent = current.sleeping ? 'Wake up' : 'Tuck in';
   must<HTMLSpanElement>('#sleep-detail').textContent = current.sleeping ? 'Say hello again' : 'Rest a little';
-  must<HTMLButtonElement>('[data-action="toggle-sleep"]').setAttribute('aria-label', current.sleeping ? 'Wake Pip' : 'Tuck Pip in');
   const stageNames = { egg: 'Egg', baby: 'Baby', teen: 'Teen', adult: 'Adult', elder: 'Elder' };
   const nextStageNames = { egg: 'hatching', baby: 'a teen', teen: 'an adult', adult: 'an elder', elder: 'a new egg' };
   const remaining = formatClock(Math.max(0, rules.lifeStages.stageMinutes[current.stage] * 60 - current.stageSeconds));
@@ -872,6 +1072,7 @@ function updateControls(current: GameState): void {
   dungeonOpen.disabled = current.paused || (!current.dungeon.activeRun && (current.sleeping || current.stage === 'egg' || !current.evolution.formId));
   dungeonOpen.setAttribute('aria-pressed', String(Boolean(current.dungeon.activeRun)));
   if (dungeonDialog.open) renderDungeon(current);
+  if (gearDialog.open) renderEquipment(current);
 
   overlay.hidden = !current.paused;
   if (current.paused) must<HTMLButtonElement>('#resume-button').focus({ preventScroll: true });
@@ -1021,6 +1222,18 @@ root.addEventListener('click', (event) => {
     dungeonDialog.showModal();
   } else if (button.id === 'dungeon-close') {
     dungeonDialog.close();
+  } else if (button.id === 'gear-open') {
+    if (state) renderEquipment(state);
+    gearDialog.showModal();
+  } else if (button.id === 'gear-close') {
+    gearDialog.close();
+  } else if (button.dataset.gearTab) {
+    if (button.dataset.gearTab === 'loadout' || button.dataset.gearTab === 'bag' || button.dataset.gearTab === 'workshop') {
+      selectedGearTab = button.dataset.gearTab;
+      if (state) renderEquipment(state);
+    }
+  } else if (button.dataset.gearAction) {
+    activateGearAction(button);
   } else if (button.id === 'forms-open') {
     if (state) renderFormDex(state);
     dexDialog.showModal();
@@ -1071,6 +1284,23 @@ minigameDialog.addEventListener('click', (event) => {
 });
 dungeonDialog.addEventListener('click', (event) => {
   if (event.target === dungeonDialog) dungeonDialog.close();
+});
+gearDialog.addEventListener('click', (event) => {
+  if (event.target === gearDialog) gearDialog.close();
+});
+gearDialog.addEventListener('change', (event) => {
+  const target = event.target;
+  if (target instanceof HTMLInputElement && target.hasAttribute('data-fuse-item')) {
+    selectedFuseIds = [...gearContent.querySelectorAll<HTMLInputElement>('[data-fuse-item]:checked')].map((input) => input.value);
+    if (state) renderEquipment(state);
+  } else if (target instanceof HTMLSelectElement && target.id === 'fusion-affix') {
+    if (state) renderEquipment(state);
+  } else if (target instanceof HTMLSelectElement && target.id === 'auto-scrap-select') {
+    const threshold = target.value;
+    if (threshold === 'off' || equipmentRules.fusion.rarityOrder.includes(threshold as ItemRarity)) {
+      sendAction({ type: 'set-auto-scrap', threshold: threshold as AutoScrapThreshold });
+    }
+  }
 });
 dexDialog.addEventListener('click', (event) => {
   if (event.target === dexDialog) dexDialog.close();
@@ -1188,6 +1418,11 @@ function activateDungeonAction(button: HTMLButtonElement): void {
     sendAction({ type: 'dungeon-rest' });
   } else if (action === 'buy' && button.dataset.consumableId) {
     sendAction({ type: 'dungeon-buy-consumable', consumableId: button.dataset.consumableId });
+  } else if (action === 'buy-gear' && button.dataset.offerId) {
+    sendAction({ type: 'dungeon-buy-equipment', offerId: button.dataset.offerId });
+  } else if (action === 'take-drop' || action === 'scrap-drop' || action === 'leave-drop') {
+    const choice = action === 'take-drop' ? 'take' : action === 'scrap-drop' ? 'scrap' : 'leave';
+    sendAction({ type: 'dungeon-resolve-item', choice });
   } else if (action === 'continue-shop') {
     sendAction({ type: 'dungeon-finish-shop' });
   } else if (action === 'use' && button.dataset.slot !== undefined) {
@@ -1198,6 +1433,27 @@ function activateDungeonAction(button: HTMLButtonElement): void {
     sendAction({ type: 'dungeon-leave' });
   } else if (action === 'close-summary') {
     sendAction({ type: 'dungeon-close-summary' });
+  }
+}
+
+function activateGearAction(button: HTMLButtonElement): void {
+  const action = button.dataset.gearAction;
+  const instanceId = button.dataset.instanceId;
+  if (action === 'equip' && instanceId) {
+    sendAction({ type: 'equip-item', instanceId });
+  } else if (action === 'unequip' && button.dataset.slot) {
+    const slot = button.dataset.slot;
+    if (['Weapon', 'Armor', 'Hat', 'Charm'].includes(slot)) sendAction({ type: 'unequip-item', slot: slot as EquipmentSlot });
+  } else if (action === 'scrap' && instanceId) {
+    sendAction({ type: 'scrap-item', instanceId });
+  } else if (action === 'upgrade' && instanceId) {
+    sendAction({ type: 'upgrade-item', instanceId });
+  } else if (action === 'fuse') {
+    const keepAffixId = gearContent.querySelector<HTMLSelectElement>('#fusion-affix')?.value || null;
+    sendAction({ type: 'fuse-items', instanceIds: [...selectedFuseIds], keepAffixId });
+    selectedFuseIds = [];
+  } else if (action === 'craft-stone') {
+    sendAction({ type: 'craft-evolution-stone' });
   }
 }
 

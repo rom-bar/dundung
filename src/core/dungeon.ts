@@ -10,6 +10,17 @@ import roomJson from '../data/rooms.json';
 import skillJson from '../data/skills.json';
 import tacticJson from '../data/tactics.json';
 import { awardXp, getEffectiveStats, getFormDefinition, updateTendency } from './progression';
+import {
+  createRandomEquipmentItem,
+  equipmentItemName,
+  getEquipmentCombatEffects,
+  getEquipmentRules,
+  getItemSalePrice,
+  getScrapValue,
+  nextEquipmentItemId,
+  sanitizeEquipmentItem,
+  shouldAutoScrap,
+} from './equipment';
 import { nextRandom } from './rng';
 import type {
   ActionResult,
@@ -20,9 +31,12 @@ import type {
   DungeonRoomType,
   DungeonRunState,
   Element,
+  EquipmentCombatEffects,
+  EquipmentItem,
   EnemyKind,
   GameAction,
   GameState,
+  ShopEquipmentOffer,
   StatKey,
   Stats,
 } from './types';
@@ -108,13 +122,29 @@ const events = eventJson as unknown as EventData[];
 const consumables = consumableJson as unknown as ConsumableData[];
 const tactics = tacticJson as unknown as TacticData[];
 const loot = lootJson as unknown as LootData[];
+const equipmentRules = getEquipmentRules();
 const roomTypes: DungeonRoomType[] = ['fight', 'elite', 'event', 'treasure', 'rest', 'shop', 'boss'];
 const statKeys: StatKey[] = ['HP', 'ATK', 'DEF', 'SPD', 'LUK'];
 const statusTypes = ['burn', 'stun', 'shield', 'buff'] as const;
 const maximumStoredCoins = 1_000_000_000;
+const maximumStoredMaterials = 1_000_000_000;
+
+function emptyEquipmentCombatEffects(): EquipmentCombatEffects {
+  return {
+    critChance: 0,
+    lifesteal: 0,
+    elementDamage: 0,
+    foodEffectiveness: 0,
+    coinFind: 0,
+    resist: 0,
+    resistByElement: { fire: 0, water: 0, moss: 0, storm: 0, shadow: 0 },
+    thorns: 0,
+    onHitStatuses: [],
+  };
+}
 
 export function createEmptyDungeonProgress(): DungeonProgress {
-  return { coins: 0, deepestFloor: 0, petDeepestFloor: 0, runsCompleted: 0, activeRun: null };
+  return { coins: 0, scrap: 0, essence: 0, deepestFloor: 0, petDeepestFloor: 0, runsCompleted: 0, activeRun: null };
 }
 
 function makeRng(seed: number): RngCursor {
@@ -190,9 +220,51 @@ function safeEnemy(value: unknown): DungeonEnemyState | null {
   };
 }
 
-function safeRun(value: unknown): DungeonRunState | null {
+function safeEquipmentCombatEffects(value: unknown): EquipmentCombatEffects {
+  const source = isRecord(value) ? value : {};
+  const fallback = emptyEquipmentCombatEffects();
+  const resistByElement = isRecord(source.resistByElement) ? source.resistByElement : {};
+  const elementValue = (key: Element) => boundedNumber(resistByElement[key], 0, 0, 0.75);
+  const onHitStatuses = Array.isArray(source.onHitStatuses)
+    ? source.onHitStatuses.slice(0, 4).flatMap((status) => {
+      if (!isRecord(status) || (status.type !== 'burn' && status.type !== 'stun')) return [];
+      return [{
+        type: status.type as EquipmentCombatEffects['onHitStatuses'][number]['type'],
+        chance: boundedNumber(status.chance, 0, 0, 0.75),
+        amount: boundedNumber(status.amount, 0, 0, 1_000_000),
+        turns: Math.floor(boundedNumber(status.turns, 1, 1, 99)),
+      }];
+    })
+    : [];
+  return {
+    critChance: boundedNumber(source.critChance, fallback.critChance, 0, 0.5),
+    lifesteal: boundedNumber(source.lifesteal, fallback.lifesteal, 0, 0.5),
+    elementDamage: boundedNumber(source.elementDamage, fallback.elementDamage, 0, 3),
+    foodEffectiveness: boundedNumber(source.foodEffectiveness, fallback.foodEffectiveness, 0, 3),
+    coinFind: boundedNumber(source.coinFind, fallback.coinFind, 0, 4),
+    resist: boundedNumber(source.resist, fallback.resist, 0, 0.75),
+    resistByElement: {
+      fire: elementValue('fire'), water: elementValue('water'), moss: elementValue('moss'),
+      storm: elementValue('storm'), shadow: elementValue('shadow'),
+    },
+    thorns: boundedNumber(source.thorns, fallback.thorns, 0, 1),
+    onHitStatuses,
+  };
+}
+
+function safeShopEquipmentOffers(value: unknown, seenItemIds: Set<string>): DungeonRunState['shopEquipmentOffers'] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, equipmentRules.shop.offerCount).flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(entry.id)) return [];
+    const item = sanitizeEquipmentItem(entry.item, seenItemIds);
+    if (!item) return [];
+    return [{ id: entry.id, item, price: Math.floor(boundedNumber(entry.price, 1, 1, maximumStoredCoins)) }];
+  });
+}
+
+function safeRun(value: unknown, seenItemIds: Set<string>): DungeonRunState | null {
   if (!isRecord(value)) return null;
-  const phases: DungeonPhase[] = ['choice', 'tactic', 'combat', 'event', 'treasure', 'rest', 'shop', 'floor-end', 'summary'];
+  const phases: DungeonPhase[] = ['choice', 'tactic', 'combat', 'loot', 'event', 'treasure', 'rest', 'shop', 'floor-end', 'summary'];
   const phase = phases.includes(value.phase as DungeonPhase) ? value.phase as DungeonPhase : null;
   const biomeId = typeof value.biomeId === 'string' && biomes.some((item) => item.id === value.biomeId) ? value.biomeId : null;
   const petFormId = typeof value.petFormId === 'string' && Boolean(getFormDefinition(value.petFormId)) ? value.petFormId : null;
@@ -211,6 +283,14 @@ function safeRun(value: unknown): DungeonRunState | null {
   const eventId = typeof value.eventId === 'string' && events.some((item) => item.id === value.eventId) ? value.eventId : null;
   if (phase === 'combat' && !enemy) return null;
   if (phase === 'event' && !eventId) return null;
+  const pendingItems = Array.isArray(value.pendingItems)
+    ? value.pendingItems.slice(0, equipmentRules.inventory.pendingItemsPerRunCap).flatMap((item) => {
+      const safe = sanitizeEquipmentItem(item, seenItemIds);
+      return safe ? [safe] : [];
+    })
+    : [];
+  const pendingItem = sanitizeEquipmentItem(value.pendingItem, seenItemIds);
+  if (phase === 'loot' && !pendingItem) return null;
   const basePetMax = Math.max(1, Math.round(petStats.HP * runStatMultipliers.HP));
   const petMaxHp = boundedNumber(value.petMaxHp, basePetMax, 1, 1_000_000);
   const run: DungeonRunState = {
@@ -229,15 +309,21 @@ function safeRun(value: unknown): DungeonRunState | null {
     petMaxHp,
     petGauge: boundedNumber(value.petGauge, 0, 0, dungeonRules.actionGauge - 0.001),
     petStatuses: safeStatuses(value.petStatuses),
+    equipmentEffects: safeEquipmentCombatEffects(value.equipmentEffects),
     enemy,
     roomChoices: Array.isArray(value.roomChoices) ? value.roomChoices.filter((item): item is DungeonRoomType => roomTypes.includes(item as DungeonRoomType)).slice(0, rooms.choicesPerRoom) : [],
     currentRoom,
     eventId,
     shopOfferIds: Array.isArray(value.shopOfferIds) ? [...new Set(value.shopOfferIds.filter((id): id is string => typeof id === 'string' && consumables.some((item) => item.id === id)))].slice(0, dungeonRules.shopOfferCount) : [],
+    shopEquipmentOffers: safeShopEquipmentOffers(value.shopEquipmentOffers, seenItemIds),
     tacticId: typeof value.tacticId === 'string' && tactics.some((item) => item.id === value.tacticId) ? value.tacticId : null,
     consumables: Array.isArray(value.consumables) ? value.consumables.filter((id): id is string => typeof id === 'string' && consumables.some((item) => item.id === id)).slice(0, dungeonRules.packSlots) : [],
     coins: Math.floor(boundedNumber(value.coins, 0, 0, maximumStoredCoins)),
     lootIds: Array.isArray(value.lootIds) ? value.lootIds.filter((id): id is string => typeof id === 'string' && loot.some((item) => item.id === id)).slice(0, 100) : [],
+    pendingItems,
+    pendingItem,
+    pendingScrap: Math.floor(boundedNumber(value.pendingScrap, 0, 0, maximumStoredMaterials)),
+    pendingEssence: Math.floor(boundedNumber(value.pendingEssence, 0, 0, maximumStoredMaterials)),
     combatLog: Array.isArray(value.combatLog) ? value.combatLog.filter((line): line is string => typeof line === 'string').map((line) => line.slice(0, 180)).slice(-dungeonRules.combatLogLimit) : [],
     combatElapsedSeconds: boundedNumber(value.combatElapsedSeconds, 0, 0, 1_000_000),
     turns: Math.floor(boundedNumber(value.turns, 0, 0, 1_000_000)),
@@ -245,19 +331,27 @@ function safeRun(value: unknown): DungeonRunState | null {
     bankedCoins: Math.floor(boundedNumber(value.bankedCoins, 0, 0, maximumStoredCoins)),
     bankedLootCount: Math.floor(boundedNumber(value.bankedLootCount, 0, 0, 100)),
     lostLootCount: Math.floor(boundedNumber(value.lostLootCount, 0, 0, 100)),
+    bankedItemCount: Math.floor(boundedNumber(value.bankedItemCount, 0, 0, equipmentRules.inventory.capacity)),
+    lostItemCount: Math.floor(boundedNumber(value.lostItemCount, 0, 0, equipmentRules.inventory.pendingItemsPerRunCap)),
+    bankedScrap: Math.floor(boundedNumber(value.bankedScrap, 0, 0, maximumStoredMaterials)),
+    bankedEssence: Math.floor(boundedNumber(value.bankedEssence, 0, 0, maximumStoredMaterials)),
+    lostScrap: Math.floor(boundedNumber(value.lostScrap, 0, 0, maximumStoredMaterials)),
+    lostEssence: Math.floor(boundedNumber(value.lostEssence, 0, 0, maximumStoredMaterials)),
   };
   if (run.phase === 'summary' && !run.result) return null;
   return run;
 }
 
-export function migrateDungeonProgress(value: unknown): DungeonProgress {
+export function migrateDungeonProgress(value: unknown, seenItemIds = new Set<string>()): DungeonProgress {
   if (!isRecord(value)) return createEmptyDungeonProgress();
   return {
     coins: Math.floor(boundedNumber(value.coins, 0, 0, maximumStoredCoins)),
+    scrap: Math.floor(boundedNumber(value.scrap, 0, 0, maximumStoredMaterials)),
+    essence: Math.floor(boundedNumber(value.essence, 0, 0, maximumStoredMaterials)),
     deepestFloor: Math.floor(boundedNumber(value.deepestFloor, 0, 0, 1_000_000)),
     petDeepestFloor: Math.floor(boundedNumber(value.petDeepestFloor, 0, 0, 1_000_000)),
     runsCompleted: Math.floor(boundedNumber(value.runsCompleted, 0, 0, 1_000_000)),
-    activeRun: safeRun(value.activeRun),
+    activeRun: safeRun(value.activeRun, seenItemIds),
   };
 }
 
@@ -339,6 +433,7 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
   const form = getFormDefinition(state.evolution.formId);
   if (!form) return { state, accepted: false, message: 'Pip needs a known form before entering the dungeon.' };
   const petStats = getEffectiveStats(state);
+  const equipmentEffects = getEquipmentCombatEffects(state.equipment, form.element);
   const rng = makeRng((state.seed ^ Math.imul(state.dungeon.runsCompleted + 1, 0x9e3779b9)) >>> 0);
   const run: DungeonRunState = {
     generation: state.generation,
@@ -351,20 +446,26 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     rngSeed: rng.seed,
     petStats,
     runStatMultipliers: { HP: 1, ATK: 1, DEF: 1, SPD: 1, LUK: 1 },
-    coinMultiplier: 1,
+    coinMultiplier: Math.min(dungeonRules.maxRunCoinMultiplier, 1 + equipmentEffects.coinFind),
     petHp: petStats.HP,
     petMaxHp: petStats.HP,
     petGauge: 0,
     petStatuses: [],
+    equipmentEffects,
     enemy: null,
     roomChoices: [],
     currentRoom: null,
     eventId: null,
     shopOfferIds: [],
+    shopEquipmentOffers: [],
     tacticId: null,
     consumables: [...packIds],
     coins: 0,
     lootIds: [],
+    pendingItems: [],
+    pendingItem: null,
+    pendingScrap: 0,
+    pendingEssence: 0,
     combatLog: ['The descent begins. Choose a path.'],
     combatElapsedSeconds: 0,
     turns: 0,
@@ -372,6 +473,12 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     bankedCoins: 0,
     bankedLootCount: 0,
     lostLootCount: 0,
+    bankedItemCount: 0,
+    lostItemCount: 0,
+    bankedScrap: 0,
+    bankedEssence: 0,
+    lostScrap: 0,
+    lostEssence: 0,
   };
   const nextRun = updateChoices(run, rng);
   const dungeon = {
@@ -533,8 +640,39 @@ function lootValue(ids: string[], multiplier = 1): number {
   return ids.reduce((sum, id) => sum + Math.floor((loot.find((item) => item.id === id)?.coinValue ?? 0) * multiplier), 0);
 }
 
+function stageEquipmentDrop(
+  state: GameState,
+  run: DungeonRunState,
+  rng: RngCursor,
+  minimumRarity: EquipmentItem['rarity'],
+): { state: GameState; run: DungeonRunState; awaitingChoice: boolean; message: string } {
+  const allocation = nextEquipmentItemId(state.equipment);
+  const item = createRandomEquipmentItem(
+    () => rng.roll(),
+    allocation.id,
+    run.floor,
+    run.petStats.LUK,
+    run.petElement,
+    minimumRarity,
+  );
+  if (!item) return { state, run, awaitingChoice: false, message: '' };
+  const nextState = { ...state, equipment: allocation.equipment };
+  const inventoryCapacity = equipmentRules.inventory.capacity;
+  const full = state.equipment.inventory.length + run.pendingItems.length >= inventoryCapacity
+    || run.pendingItems.length >= equipmentRules.inventory.pendingItemsPerRunCap;
+  if (full || shouldAutoScrap(item, state.equipment.autoScrapThrough)) {
+    const scrap = getScrapValue(item);
+    const reason = full ? 'the bag is full' : `auto-scrap is set through ${state.equipment.autoScrapThrough}`;
+    const nextRun = pushLog({ ...run, pendingScrap: Math.min(maximumStoredMaterials, run.pendingScrap + scrap), rngSeed: rng.seed }, `${equipmentItemName(item)} was ${full ? 'salvaged' : 'auto-scrapped'} (${reason}) for ${scrap} Scrap.`);
+    return { state: nextState, run: nextRun, awaitingChoice: false, message: `${equipmentItemName(item)} became ${scrap} Scrap because ${reason}.` };
+  }
+  const nextRun = pushLog({ ...run, phase: 'loot', pendingItem: item, rngSeed: rng.seed }, `${item.rarity} drop: ${equipmentItemName(item)}.`);
+  return { state: nextState, run: nextRun, awaitingChoice: true, message: `${item.rarity} drop: ${equipmentItemName(item)}.` };
+}
+
 function endRun(state: GameState, run: DungeonRunState, result: 'left' | 'fainted', rng: RngCursor): ActionResult {
   let keptLoot = [...run.lootIds];
+  let keptItems = [...run.pendingItems];
   if (result === 'fainted') {
     const keepCount = Math.floor(keptLoot.length / 2);
     for (let index = keptLoot.length - 1; index > 0; index -= 1) {
@@ -542,38 +680,73 @@ function endRun(state: GameState, run: DungeonRunState, result: 'left' | 'fainte
       [keptLoot[index], keptLoot[swap]] = [keptLoot[swap]!, keptLoot[index]!];
     }
     keptLoot = keptLoot.slice(0, keepCount);
+    const itemKeepCount = Math.floor(keptItems.length / 2);
+    for (let index = keptItems.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(rng.roll() * (index + 1));
+      [keptItems[index], keptItems[swap]] = [keptItems[swap]!, keptItems[index]!];
+    }
+    keptItems = keptItems.slice(0, itemKeepCount);
   }
   const retainedCoins = result === 'left' ? run.coins : Math.floor(run.coins / 2);
   const bankedCoins = Math.min(maximumStoredCoins, retainedCoins + lootValue(keptLoot, coinMultiplier(run)));
+  const retainedScrap = result === 'left' ? run.pendingScrap : Math.floor(run.pendingScrap / 2);
+  const retainedEssence = result === 'left' ? run.pendingEssence : Math.floor(run.pendingEssence / 2);
+  let equipment = state.equipment;
+  let overflowScrap = 0;
+  let bankedItemCount = 0;
+  for (const item of keptItems) {
+    if (equipment.inventory.length < equipmentRules.inventory.capacity) {
+      equipment = { ...equipment, inventory: [...equipment.inventory, item] };
+      bankedItemCount += 1;
+    } else {
+      overflowScrap += getScrapValue(item);
+    }
+  }
+  const bankedScrap = Math.min(maximumStoredMaterials, retainedScrap + overflowScrap);
+  const bankedEssence = Math.min(maximumStoredMaterials, retainedEssence);
   const nextRun: DungeonRunState = {
-    ...pushLog(run, result === 'left' ? 'Pip leaves the dungeon safely.' : 'Pip fainted; the pack was lost.'),
+    ...pushLog(run, result === 'left' ? 'Pip leaves the dungeon safely.' : 'Pip fainted; half the carried gear and materials were lost, and the pack was lost.'),
     phase: 'summary',
     result,
     bankedCoins,
     bankedLootCount: keptLoot.length,
     lostLootCount: run.lootIds.length - keptLoot.length,
+    bankedItemCount,
+    lostItemCount: run.pendingItems.length - keptItems.length,
+    bankedScrap,
+    bankedEssence,
+    lostScrap: run.pendingScrap - retainedScrap,
+    lostEssence: run.pendingEssence - retainedEssence,
     roomChoices: [],
     enemy: null,
     currentRoom: null,
     eventId: null,
     shopOfferIds: [],
+    shopEquipmentOffers: [],
     consumables: [],
+    pendingItems: [],
+    pendingItem: null,
+    pendingScrap: 0,
+    pendingEssence: 0,
     rngSeed: rng.seed,
   };
   const nextState: GameState = {
     ...state,
+    equipment,
     needs: result === 'fainted' ? { ...state.needs, energy: 0 } : state.needs,
     sleeping: false,
     dungeon: {
       ...state.dungeon,
       coins: Math.min(maximumStoredCoins, state.dungeon.coins + bankedCoins),
+      scrap: Math.min(maximumStoredMaterials, state.dungeon.scrap + bankedScrap),
+      essence: Math.min(maximumStoredMaterials, state.dungeon.essence + bankedEssence),
       runsCompleted: Math.min(1_000_000, state.dungeon.runsCompleted + 1),
       activeRun: nextRun,
     },
   };
   const message = result === 'left'
-    ? `Run complete: ${bankedCoins} coins banked.`
-    : `Pip fainted. ${bankedCoins} coins banked; ${nextRun.lostLootCount} loot lost and the pack is gone.`;
+    ? `Run complete: ${bankedCoins} coins, ${bankedItemCount} gear item${bankedItemCount === 1 ? '' : 's'}, ${bankedScrap} Scrap and ${bankedEssence} Essence banked.`
+    : `Pip fainted. ${bankedCoins} coins and ${bankedItemCount} gear item${bankedItemCount === 1 ? '' : 's'} banked; ${nextRun.lostLootCount} tokens and ${nextRun.lostItemCount} gear item${nextRun.lostItemCount === 1 ? '' : 's'} lost, and the pack is gone.`;
   return { state: nextState, accepted: true, message };
 }
 
@@ -590,6 +763,7 @@ function finishRoom(state: GameState, run: DungeonRunState, rng: RngCursor): Gam
     enemy: null,
     eventId: null,
     shopOfferIds: [],
+    shopEquipmentOffers: [],
     tacticId: null,
     rngSeed: rng.seed,
   };
@@ -607,6 +781,22 @@ function rewardCombatVictory(state: GameState, run: DungeonRunState, rng: RngCur
   let nextState = awardXp(state, xp);
   nextState = updateTendency(nextState, 'fight');
   nextRun = pushLog(nextRun, `${enemy.name} is defeated. +${xp} XP.`);
+  const policy = equipmentRules.dropPolicy[kind === 'fight' ? 'normal' : kind];
+  if (kind === 'boss' && policy.essenceYield) {
+    const essence = randomInteger(rng, policy.essenceYield.min, policy.essenceYield.max);
+    nextRun = pushLog({ ...nextRun, pendingEssence: Math.min(maximumStoredMaterials, nextRun.pendingEssence + essence) }, `${essence} Essence found.`);
+  }
+  const dropCount = randomInteger(rng, policy.itemCount.min, policy.itemCount.max);
+  const shouldDrop = kind !== 'fight' || rng.roll() < (policy.commonChance ?? 0);
+  if (dropCount > 0 && shouldDrop) {
+    const staged = stageEquipmentDrop(nextState, nextRun, rng, policy.rarityFloor);
+    nextState = staged.state;
+    nextRun = staged.run;
+    if (staged.awaitingChoice) {
+      return { ...nextState, dungeon: { ...nextState.dungeon, activeRun: nextRun } };
+    }
+  }
+  nextRun = { ...nextRun, rngSeed: rng.seed };
   return finishRoom(nextState, nextRun, rng);
 }
 
@@ -646,14 +836,14 @@ function petTurn(run: DungeonRunState, state: GameState, rng: RngCursor): Dungeo
   if (!skill) return pushLog(ageActorStatuses(run, 'pet'), 'Pip steadies for a moment.');
   const enemy = run.enemy;
   const tactic = getTactic(run);
-  const chance = Math.min(dungeonRules.critChanceCap, dungeonRules.critBaseChance + dungeonRules.critChancePerLuck * petStat(run, 'LUK', state) + (tactic?.critBonus ?? 0));
+  const chance = Math.min(dungeonRules.critChanceCap, dungeonRules.critBaseChance + dungeonRules.critChancePerLuck * petStat(run, 'LUK', state) + (tactic?.critBonus ?? 0) + run.equipmentEffects.critChance);
   const critical = rng.roll() < chance;
   const randomMultiplier = dungeonRules.damageRandomMin + rng.roll() * (dungeonRules.damageRandomMax - dungeonRules.damageRandomMin);
   const damage = calculateDamage({
     attack: petStat(run, 'ATK', state),
     defense: enemyStat(enemy, 'DEF'),
     skillMultiplier: skill.multiplier,
-    elementMultiplier: getElementMultiplier(run.petElement, enemy.element),
+    elementMultiplier: getElementMultiplier(run.petElement, enemy.element) * (1 + run.equipmentEffects.elementDamage),
     critMultiplier: critical ? dungeonRules.critMultiplier : 1,
     randomMultiplier,
   });
@@ -663,8 +853,16 @@ function petTurn(run: DungeonRunState, state: GameState, rng: RngCursor): Dungeo
     enemy: { ...enemy, hp: clampHp(enemy.hp - damage, enemy.maxHp) },
     turns: run.turns + 1,
   };
-  run = pushLog(run, `Pip uses ${skill.name}${critical ? ' · critical' : ''}${effectiveness > 1 ? ' · strong hit' : ''} for ${damage}.`);
+  const healed = Math.min(run.petMaxHp - run.petHp, Math.floor(damage * run.equipmentEffects.lifesteal));
+  if (healed > 0) run = { ...run, petHp: run.petHp + healed };
+  run = pushLog(run, `Pip uses ${skill.name}${critical ? ' · critical' : ''}${effectiveness > 1 ? ' · strong hit' : ''} for ${damage}${healed > 0 ? ` · siphons ${healed} health` : ''}.`);
   if (run.enemy && run.enemy.hp > 0) run = applySkillEffect(run, 'pet', skill.effect, rng);
+  for (const bonus of run.equipmentEffects.onHitStatuses) {
+    if (!run.enemy || run.enemy.hp <= 0) break;
+    if (rng.roll() < bonus.chance) {
+      run = { ...run, enemy: { ...run.enemy, statuses: addStatus(run.enemy.statuses, { type: bonus.type, amount: bonus.amount, turns: bonus.turns }) } };
+    }
+  }
   run = ageActorStatuses(run, 'pet');
   return checkBossPhase(run);
 }
@@ -689,12 +887,19 @@ function enemyTurn(run: DungeonRunState, state: GameState, rng: RngCursor): Dung
     elementMultiplier: getElementMultiplier(enemy.element, run.petElement),
     critMultiplier: critical ? dungeonRules.critMultiplier : 1,
     randomMultiplier,
-    damageTakenMultiplier: tactic?.damageTakenMultiplier ?? 1,
+    damageTakenMultiplier: (tactic?.damageTakenMultiplier ?? 1) * (1 - Math.min(0.75, run.equipmentEffects.resist + run.equipmentEffects.resistByElement[enemy.element])),
   });
   const applied = applyIncomingDamage(run, 'pet', damage);
   run = pushLog(applied.run, `${enemy.name} uses ${skill.name}${critical ? ' · critical' : ''} for ${applied.received}${applied.absorbed ? ` (${applied.absorbed} blocked)` : ''}.`);
   run = { ...run, turns: run.turns + 1 };
-  if (run.petHp > 0) run = applySkillEffect(run, 'enemy', skill.effect, rng);
+  if (run.enemy && run.enemy.hp > 0 && applied.received > 0 && run.equipmentEffects.thorns > 0) {
+    const reflected = Math.floor(applied.received * run.equipmentEffects.thorns);
+    if (reflected > 0) {
+      const thornResult = applyIncomingDamage(run, 'enemy', reflected);
+      run = pushLog(thornResult.run, `Pip's gear returns ${reflected} thorn damage.`);
+    }
+  }
+  if (run.petHp > 0 && run.enemy?.hp) run = applySkillEffect(run, 'enemy', skill.effect, rng);
   return ageActorStatuses(run, 'enemy');
 }
 
@@ -756,8 +961,21 @@ function startEncounter(state: GameState, run: DungeonRunState, roomType: Dungeo
     const index = Math.floor(rng.roll() * rngOffers.length);
     offers.push(rngOffers.splice(index, 1)[0]!);
   }
-  const nextRun = pushLog({ ...run, phase: 'shop', currentRoom: roomType, shopOfferIds: offers, rngSeed: rng.seed }, 'A traveling shop has opened.');
-  return { state: { ...state, dungeon: { ...state.dungeon, activeRun: nextRun } }, accepted: true, message: 'A traveling shop is open.' };
+  let equipment = state.equipment;
+  const gearOffers: ShopEquipmentOffer[] = [];
+  while (gearOffers.length < equipmentRules.shop.offerCount) {
+    const allocation = nextEquipmentItemId(equipment);
+    const item = createRandomEquipmentItem(() => rng.roll(), allocation.id, run.floor, run.petStats.LUK, run.petElement);
+    equipment = allocation.equipment;
+    if (!item) break;
+    gearOffers.push({ id: `offer-${item.instanceId}`, item, price: getItemSalePrice(item) });
+  }
+  const nextRun = pushLog({ ...run, phase: 'shop', currentRoom: roomType, shopOfferIds: offers, shopEquipmentOffers: gearOffers, rngSeed: rng.seed }, 'A traveling shop has opened.');
+  return {
+    state: { ...state, equipment, dungeon: { ...state.dungeon, activeRun: nextRun } },
+    accepted: true,
+    message: 'A traveling shop is open.',
+  };
 }
 
 function chooseRoom(state: GameState, roomType: DungeonRoomType): ActionResult {
@@ -864,8 +1082,13 @@ function openTreasure(state: GameState): ActionResult {
     }
   }
   nextRun = pushLog({ ...nextRun, rngSeed: rng.seed }, `Treasure opened: +${Math.floor(amount * coinMultiplier(nextRun))} coins${foundLoot ? ' and a token' : ''}.`);
-  const message = `Found ${Math.floor(amount * coinMultiplier(nextRun))} coins${foundLoot ? ' and a treasure token' : ''}.`;
-  return { state: finishRoom(state, nextRun, rng), accepted: true, message };
+  const coinMessage = `Found ${Math.floor(amount * coinMultiplier(nextRun))} coins${foundLoot ? ' and a treasure token' : ''}.`;
+  const staged = stageEquipmentDrop(state, nextRun, rng, equipmentRules.dropPolicy.treasure.rarityFloor);
+  const message = `${coinMessage} ${staged.message}`.trim();
+  if (staged.awaitingChoice) {
+    return { state: { ...staged.state, dungeon: { ...staged.state.dungeon, activeRun: staged.run } }, accepted: true, message };
+  }
+  return { state: finishRoom(staged.state, { ...staged.run, rngSeed: rng.seed }, rng), accepted: true, message };
 }
 
 function restAtRoom(state: GameState): ActionResult {
@@ -892,6 +1115,52 @@ function buyConsumable(state: GameState, consumableId: string): ActionResult {
     shopOfferIds: run.shopOfferIds.filter((id) => id !== item.id),
   }, `${item.name} added to the pack.`);
   return { state: { ...state, dungeon: { ...state.dungeon, activeRun: nextRun } }, accepted: true, message: `${item.name} added to the pack.` };
+}
+
+function buyEquipment(state: GameState, offerId: string): ActionResult {
+  const run = state.dungeon.activeRun;
+  const offer = run?.shopEquipmentOffers.find((candidate) => candidate.id === offerId);
+  if (!run || run.phase !== 'shop' || !offer) return { state, accepted: false, message: 'That gear is not on this shop shelf.' };
+  if (state.equipment.inventory.length + run.pendingItems.length >= equipmentRules.inventory.capacity
+    || run.pendingItems.length >= equipmentRules.inventory.pendingItemsPerRunCap) {
+    return { state, accepted: false, message: 'Your bag is full. Finish the run or leave some gear behind before buying more.' };
+  }
+  if (shouldAutoScrap(offer.item, state.equipment.autoScrapThrough)) {
+    return { state, accepted: false, message: `Your auto-scrap setting would salvage ${offer.item.rarity} gear; turn it off or lower the threshold before buying.` };
+  }
+  if (run.coins < offer.price) return { state, accepted: false, message: `Need ${offer.price} run coins for this gear.` };
+  const itemName = equipmentItemName(offer.item);
+  const nextRun = pushLog({
+    ...run,
+    coins: run.coins - offer.price,
+    pendingItems: [...run.pendingItems, offer.item],
+    shopEquipmentOffers: run.shopEquipmentOffers.filter((candidate) => candidate.id !== offer.id),
+  }, `${offer.item.rarity} ${itemName} added to the run bag for ${offer.price} coins.`);
+  return { state: { ...state, dungeon: { ...state.dungeon, activeRun: nextRun } }, accepted: true, message: `${offer.item.rarity} ${itemName} added to the run bag.` };
+}
+
+function resolvePendingItem(state: GameState, choice: 'take' | 'scrap' | 'leave'): ActionResult {
+  const run = state.dungeon.activeRun;
+  const item = run?.pendingItem;
+  if (!run || run.phase !== 'loot' || !item) return { state, accepted: false, message: 'There is no gear drop waiting.' };
+  let nextRun: DungeonRunState = { ...run, pendingItem: null, phase: 'choice' };
+  let message: string;
+  if (choice === 'take' && state.equipment.inventory.length + run.pendingItems.length < equipmentRules.inventory.capacity
+    && run.pendingItems.length < equipmentRules.inventory.pendingItemsPerRunCap) {
+    nextRun = { ...nextRun, pendingItems: [...run.pendingItems, item] };
+    message = `${equipmentItemName(item)} added to the run bag.`;
+  } else if (choice === 'scrap' || choice === 'take') {
+    const scrap = getScrapValue(item);
+    nextRun = { ...nextRun, pendingScrap: Math.min(maximumStoredMaterials, run.pendingScrap + scrap) };
+    message = choice === 'scrap'
+      ? `${equipmentItemName(item)} salvaged for ${scrap} Scrap.`
+      : `The bag is full; ${equipmentItemName(item)} was salvaged for ${scrap} Scrap.`;
+  } else {
+    message = `${equipmentItemName(item)} left behind.`;
+  }
+  nextRun = pushLog(nextRun, message);
+  const nextState = finishRoom(state, nextRun, makeRng(run.rngSeed));
+  return { state: nextState, accepted: true, message };
 }
 
 function finishShop(state: GameState): ActionResult {
@@ -971,6 +1240,8 @@ export function applyDungeonAction(state: GameState, action: GameAction): Action
     case 'dungeon-open-treasure': return openTreasure(state);
     case 'dungeon-rest': return restAtRoom(state);
     case 'dungeon-buy-consumable': return buyConsumable(state, action.consumableId);
+    case 'dungeon-buy-equipment': return buyEquipment(state, action.offerId);
+    case 'dungeon-resolve-item': return resolvePendingItem(state, action.choice);
     case 'dungeon-finish-shop': return finishShop(state);
     case 'dungeon-use-consumable': return useConsumable(state, action.slot);
     case 'dungeon-descend': return descend(state);

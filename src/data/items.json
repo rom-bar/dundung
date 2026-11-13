@@ -1,0 +1,22 @@
+[
+  {"id":"emberfang-pick","name":"Emberfang Pick","slot":"Weapon","setId":"cinderburrow","baseStats":{"attack":14}},
+  {"id":"coalcap-plate","name":"Coalcap Plate","slot":"Armor","setId":"cinderburrow","baseStats":{"defense":12,"hp":18}},
+  {"id":"lanternmole-hood","name":"Lanternmole Hood","slot":"Hat","setId":"cinderburrow","baseStats":{"speed":4,"hp":10}},
+  {"id":"warmstone-knot","name":"Warmstone Knot","slot":"Charm","setId":"cinderburrow","baseStats":{"attack":5,"defense":5}},
+  {"id":"mossjaw-maul","name":"Mossjaw Maul","slot":"Weapon","setId":"verdantgrotto","baseStats":{"attack":12,"hp":12}},
+  {"id":"fernback-mail","name":"Fernback Mail","slot":"Armor","setId":"verdantgrotto","baseStats":{"defense":14,"hp":14}},
+  {"id":"sproutcap-cowl","name":"Sproutcap Cowl","slot":"Hat","setId":"verdantgrotto","baseStats":{"speed":3,"defense":5}},
+  {"id":"rootwhisper-talisman","name":"Rootwhisper Talisman","slot":"Charm","setId":"verdantgrotto","baseStats":{"hp":24}},
+  {"id":"dripstone-rapier","name":"Dripstone Rapier","slot":"Weapon","setId":"tidalhollow","baseStats":{"attack":13,"speed":2}},
+  {"id":"shellswell-coat","name":"Shellswell Coat","slot":"Armor","setId":"tidalhollow","baseStats":{"defense":13,"hp":16}},
+  {"id":"bubblebat-helm","name":"Bubblebat Helm","slot":"Hat","setId":"tidalhollow","baseStats":{"speed":5}},
+  {"id":"moonpool-pearl","name":"Moonpool Pearl","slot":"Charm","setId":"tidalhollow","baseStats":{"attack":4,"hp":16}},
+  {"id":"thunderchalk-hammer","name":"Thunderchalk Hammer","slot":"Weapon","setId":"stormvault","baseStats":{"attack":16}},
+  {"id":"skycrack-cuirass","name":"Skycrack Cuirass","slot":"Armor","setId":"stormvault","baseStats":{"defense":11,"speed":3}},
+  {"id":"static-stalactite-cap","name":"Static Stalactite Cap","slot":"Hat","setId":"stormvault","baseStats":{"attack":6,"speed":3}},
+  {"id":"echo-spark-charm","name":"Echo Spark Charm","slot":"Charm","setId":"stormvault","baseStats":{"attack":7,"defense":3}},
+  {"id":"duskscale-drill","name":"Duskscale Drill","slot":"Weapon","setId":"gloamdeep","baseStats":{"attack":13,"critChance":0.02}},
+  {"id":"nightmoss-vest","name":"Nightmoss Vest","slot":"Armor","setId":"gloamdeep","baseStats":{"defense":15,"hp":12}},
+  {"id":"whisperbat-mask","name":"Whisperbat Mask","slot":"Hat","setId":"gloamdeep","baseStats":{"speed":4,"critChance":0.02}},
+  {"id":"eclipse-geode","name":"Eclipse Geode","slot":"Charm","setId":"gloamdeep","baseStats":{"attack":5,"hp":12}}
+]

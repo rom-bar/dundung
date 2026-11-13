@@ -236,10 +236,10 @@ describe('Phase 4 dungeon core', () => {
     expect(faintState.needs.energy).toBe(0);
   });
 
-  it('bounds persisted dungeon state and keeps valid run snapshots on schema-v3 load', () => {
+  it('bounds persisted dungeon state and keeps valid run snapshots on schema-v4 load', () => {
     const active = startRun(57, ['peppy-potion']);
     const restored = migrateSave(JSON.parse(JSON.stringify(active)) as unknown);
-    expect(restored.schemaVersion).toBe(3);
+    expect(restored.schemaVersion).toBe(4);
     expect(restored.paused).toBe(true);
     expect(restored.dungeon.activeRun?.consumables).toEqual(['peppy-potion']);
     expect(restored.dungeon.activeRun?.petFormId).toBe(formId);

@@ -1,5 +1,7 @@
 import rules from '../data/rules.json';
 import foods from '../data/foods.json';
+import { createEmptyEquipment, getEquipmentCombatEffects } from './equipment';
+import { applyEquipmentAction } from './inventory';
 import {
   awardTraining,
   awardXp,
@@ -31,7 +33,7 @@ function stageDurationSeconds(stage: GameState['stage']): number {
 
 export function createInitialState(seed = 1): GameState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     seed: seed >>> 0,
     stage: 'egg',
     stageSeconds: 0,
@@ -63,6 +65,7 @@ export function createInitialState(seed = 1): GameState {
     formDex: [],
     hallOfPets: [],
     dungeon: createEmptyDungeonProgress(),
+    equipment: createEmptyEquipment(),
     miniGameCooldownSeconds: 0,
     peakLevel: 1,
   };
@@ -189,6 +192,8 @@ export function applyAction(state: GameState, action: GameAction): ActionResult 
   if (state.paused) return reject(state, 'Tap continue before caring for Pip.');
   const dungeonResult = applyDungeonAction(state, action);
   if (dungeonResult) return dungeonResult;
+  const equipmentResult = applyEquipmentAction(state, action);
+  if (equipmentResult) return equipmentResult;
   if (action.type === 'mini-game-complete') return completeMiniGame(state, action);
   if (action.type === 'use-evolution-stone') {
     if (state.evolution.evolutionStones < 1 || !state.evolution.formId) return reject(state, 'No Evolution Stone is ready.');
@@ -224,12 +229,13 @@ export function applyAction(state: GameState, action: GameAction): ActionResult 
     const food = foods.find((item) => item.id === action.foodId);
     if (!food) return reject(state, 'That snack is not in the pantry.');
     const traitEffects = getTraitEffects(state);
+    const foodGearMultiplier = Math.min(3, 1 + getEquipmentCombatEffects(state.equipment, 'fire').foodEffectiveness);
     let next = withNeedEffects(state, {
       hunger: food.hunger,
       happiness: food.happiness,
       energy: food.energy,
       hygiene: food.hygiene,
-    }, traitEffects.foodEffectMultiplier * traitEffects.careEffectMultiplier);
+    }, traitEffects.foodEffectMultiplier * traitEffects.careEffectMultiplier * foodGearMultiplier);
     next = recordFoodElement(next, food.tags);
     next = updateTendency(next, 'feedQuality', food.tags.includes('comfort')
       ? rules.progression.tendencySignals.feedComfort

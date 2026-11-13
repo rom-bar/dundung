@@ -622,6 +622,110 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
   cursor: pointer;
 }
 
+.gear-dialog {
+  width: min(calc(100vw - 20px), 980px);
+  max-height: calc(100vh - 20px);
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
+  padding: clamp(14px, 3vw, 26px);
+  border-color: rgba(171, 223, 180, .42);
+  scrollbar-color: var(--mint) transparent;
+}
+.gear-heading { margin-bottom: 15px; }
+.gear-heading h2 { max-width: 640px; }
+.gear-wallet { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0; }
+.gear-wallet span { display: grid; gap: 5px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); background: #242035; }
+.gear-wallet small, .gear-stat-ribbon small { color: var(--ink-muted); font-size: 9px; }
+.gear-wallet strong { color: var(--honey); font-family: 'Press Start 2P', monospace; font-size: 11px; overflow-wrap: anywhere; }
+.gear-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.gear-tab { min-height: 44px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-muted); font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.gear-tab[aria-selected="true"] { border-bottom-color: var(--mint); color: var(--mint); }
+.gear-content { min-height: 170px; padding-top: 15px; }
+.gear-overview { padding: 14px; border-left: 3px solid var(--mint-dark); background: rgba(18, 15, 29, .58); }
+.gear-overview h3, .gear-set-shelf h3, .workshop-intro h3, .gear-bag-head h3, .gear-fusion-panel h3 { margin: 0; font-size: 15px; line-height: 1.4; }
+.gear-stat-ribbon { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; margin-top: 12px; }
+.gear-stat-ribbon span { display: grid; gap: 4px; padding: 7px; border-top: 1px solid var(--line); }
+.gear-stat-ribbon strong { color: var(--paper); font-size: 12px; font-variant-numeric: tabular-nums; }
+.gear-bonus-note, .gear-lock-note, .gear-bag-hint { margin: 10px 0 0; color: var(--ink-muted); font-size: 10px; line-height: 1.55; }
+.gear-lock-note { padding: 9px 10px; border-left: 2px solid var(--honey); background: rgba(241, 201, 107, .07); color: var(--honey); }
+.gear-set-shelf { margin: 17px 0 12px; }
+.gear-set-shelf > h3 { margin-bottom: 8px; }
+.gear-set-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 9px 10px; border-bottom: 1px solid var(--line); background: rgba(36, 32, 53, .55); }
+.gear-set-line strong { color: var(--mint); font-size: 11px; }
+.gear-set-line > span { color: var(--honey); font-size: 10px; }
+.gear-set-line small { grid-column: 1 / -1; color: var(--ink-muted); font-size: 9px; line-height: 1.4; }
+.gear-loadout-grid, .gear-bag-grid, .gear-workshop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.gear-slot-panel { min-width: 0; padding: 10px; border: 1px solid var(--line); background: rgba(18, 15, 29, .45); }
+.gear-slot-heading, .gear-bag-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gear-slot-heading { margin-bottom: 8px; }
+.gear-slot-heading h3 { margin: 0; color: var(--honey); font-size: 12px; }
+.gear-slot-heading span, .gear-bag-head > span { color: var(--ink-muted); font-size: 9px; }
+.gear-empty-slot, .gear-empty-bag { margin: 0; padding: 12px; border: 1px dashed rgba(219, 207, 235, .22); color: var(--ink-muted); font-size: 10px; line-height: 1.5; }
+.gear-candidates { display: grid; gap: 7px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
+.gear-candidates h4, .shop-shelf-title { margin: 0; color: var(--mint); font-size: 11px; }
+.gear-card { min-width: 0; padding: 10px; border: 1px solid var(--line); border-left: 3px solid var(--rock-light); background: #242035; }
+.gear-card[data-rarity="Uncommon"] { border-left-color: var(--mint-dark); }
+.gear-card[data-rarity="Rare"] { border-left-color: var(--honey); }
+.gear-card[data-rarity="Epic"] { border-left-color: #c89be8; }
+.gear-card[data-rarity="Legendary"] { border-left-color: #f08d69; }
+.gear-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gear-rarity { color: var(--honey); font-size: 9px; font-weight: 800; }
+.gear-slot { color: var(--ink-muted); font-size: 9px; }
+.gear-card[data-rarity="Uncommon"] .gear-rarity { color: var(--mint); }
+.gear-card[data-rarity="Epic"] .gear-rarity { color: #d2adf0; }
+.gear-card[data-rarity="Legendary"] .gear-rarity { color: #f08d69; }
+.gear-card h4 { margin: 7px 0 3px; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.gear-level { margin: 0; color: var(--ink-muted); font-size: 9px; }
+.gear-stat-lines { display: flex; flex-wrap: wrap; gap: 5px 9px; margin-top: 9px; color: #ded6e7; font-size: 9px; }
+.gear-stat-lines strong { color: var(--mint); }
+.gear-affixes { display: grid; gap: 5px; margin: 9px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); list-style: none; }
+.gear-affixes li { display: grid; gap: 2px; }
+.gear-affixes strong { color: var(--honey); font-size: 9px; }
+.gear-affixes span, .gear-no-affix { color: var(--ink-muted); font-size: 9px; line-height: 1.4; }
+.gear-affixes .is-unique strong { color: #d2adf0; }
+.gear-no-affix { margin: 8px 0 0; }
+.gear-comparison { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; margin-top: 9px; padding-top: 7px; border-top: 1px dashed var(--line); }
+.gear-comparison span { display: grid; gap: 2px; text-align: center; }
+.gear-comparison small { color: var(--ink-muted); font-size: 8px; }
+.gear-comparison strong { color: var(--mint); font-size: 9px; font-variant-numeric: tabular-nums; }
+.gear-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.gear-action { min-height: 40px; padding: 7px 10px; border: 1px solid rgba(171, 223, 180, .42); border-radius: 4px; background: #2a3c36; color: var(--mint); font-size: 9px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.gear-action:hover:not(:disabled) { background: #355044; }
+.gear-action.is-quiet { border-color: var(--line); background: transparent; color: var(--ink-muted); }
+.gear-fuse-select { min-height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid var(--line); color: var(--ink-muted); font-size: 9px; cursor: pointer; }
+.gear-fuse-select input { width: 18px; height: 18px; margin: 0; accent-color: var(--mint); }
+.gear-bag-head { flex-wrap: wrap; justify-content: flex-start; margin-bottom: 8px; }
+.gear-bag-head > div { flex: 1; }
+.gear-bag-head .eyebrow { margin-bottom: 5px; }
+.gear-bag-head > span { margin-left: auto; color: var(--honey); font-weight: 800; }
+.gear-field { display: grid; gap: 5px; color: #e5ddeb; font-size: 10px; font-weight: 700; }
+.gear-field select { min-height: 40px; padding: 0 9px; border: 1px solid var(--line); border-radius: 4px; background: #29243b; color: var(--paper); font: inherit; }
+.gear-bag-hint { margin: 0 0 9px; }
+.gear-empty-bag { margin: 8px 0; }
+.gear-fusion-panel { display: grid; justify-items: start; gap: 9px; margin-top: 13px; padding: 12px; border: 1px solid rgba(241, 201, 107, .35); background: rgba(241, 201, 107, .055); }
+.gear-fusion-panel .eyebrow { margin-bottom: 5px; color: var(--honey); }
+.gear-fusion-panel p:not(.eyebrow), .gear-fusion-panel small { margin: 5px 0 0; color: var(--ink-muted); font-size: 10px; line-height: 1.5; }
+.fusion-count { color: var(--honey) !important; font-weight: 800; }
+.gear-fusion-panel .primary-button { width: auto; min-width: 190px; padding: 0 14px; }
+.run-gear-shelf { margin-top: 13px; padding: 11px; border: 1px dashed rgba(241, 201, 107, .42); background: rgba(241, 201, 107, .04); }
+.run-gear-shelf .gear-slot-heading { margin-bottom: 0; }
+.run-gear-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
+.run-gear-shelf .gear-card { background: rgba(36, 32, 53, .8); }
+.workshop-intro { margin-bottom: 12px; padding: 12px; border-left: 3px solid var(--honey); background: rgba(18, 15, 29, .55); }
+.workshop-intro .eyebrow { margin-bottom: 5px; color: var(--honey); }
+.workshop-intro p:last-child { margin: 7px 0 0; color: var(--ink-muted); font-size: 10px; line-height: 1.5; }
+.stone-crafting { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; padding: 10px; border: 1px solid rgba(200, 155, 232, .38); background: rgba(200, 155, 232, .06); }
+.stone-crafting strong, .stone-crafting small { display: block; }
+.stone-crafting strong { color: #d2adf0; font-size: 11px; }
+.stone-crafting small { margin-top: 4px; color: var(--ink-muted); font-size: 9px; line-height: 1.4; }
+.shop-shelf-title { margin: 14px 0 5px; }
+.shop-gear-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
+.shop-gear-offer { min-width: 0; display: grid; gap: 6px; padding: 7px; border: 1px solid var(--line); background: rgba(18, 15, 29, .5); }
+.shop-gear-offer .gear-card { padding: 8px; }
+.shop-gear-offer .shop-buy { width: 100%; }
+.loot-scene .gear-card { margin-top: 10px; }
+.loot-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.loot-actions .quiet-button { border-color: var(--line); }
+
 .dungeon-dialog {
   width: min(calc(100vw - 28px), 980px);
   max-width: none;
@@ -656,7 +760,7 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
 .dungeon-start-story > p:not(.eyebrow), .dungeon-note, .dungeon-body-copy { color: var(--ink-muted); font-size: 12px; line-height: 1.6; }
 .dungeon-start-story > p:not(.eyebrow) { margin: 12px 0; }
 .dungeon-note { margin: 13px 0 0; padding-top: 11px; border-top: 1px solid var(--line); font-size: 10px; }
-.dungeon-records { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 14px; }
+.dungeon-records { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 14px; }
 .dungeon-records span { display: grid; gap: 5px; min-width: 0; padding: 10px 8px; border: 1px solid var(--line); background: #242035; }
 .dungeon-records strong { color: var(--honey); font-family: 'Press Start 2P', monospace; font-size: 12px; overflow-wrap: anywhere; }
 .dungeon-records small { color: var(--ink-muted); font-size: 9px; line-height: 1.35; }
@@ -685,7 +789,7 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
 .path-node.is-current { color: var(--paper); font-weight: 800; }
 .path-node.is-current .path-node-mark { border-color: var(--biome-accent, var(--honey)); background: color-mix(in srgb, var(--biome-accent, var(--honey)) 16%, var(--night-soft)); color: var(--biome-accent, var(--honey)); box-shadow: 0 0 15px color-mix(in srgb, var(--biome-accent, var(--honey)) 22%, transparent); }
 .path-node.is-cleared .path-node-mark { border-color: var(--mint-dark); color: var(--mint); }
-.run-ledger { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 12px 0; }
+.run-ledger { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 12px 0; }
 .run-ledger span { min-width: 0; display: grid; gap: 4px; padding: 8px 6px; border-top: 1px solid var(--line); }
 .run-ledger small { color: var(--ink-muted); font-size: 8px; }
 .run-ledger strong { color: var(--honey); font-size: 11px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -825,10 +929,39 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
   .quiet-button .button-icon { font-size: 14px; }
   #mini-mode-button span:not(.button-icon) { display: none; }
   #dungeon-open span:not(.button-icon) { display: none; }
+  #gear-open span:not(.button-icon) { display: none; }
   #forms-open span:not(.button-icon) { display: none; }
   #settings-open span:not(.button-icon) { display: none; }
   #install-app { min-height: 40px; padding: 0 5px; font-size: 9px; }
   #about-open { padding: 0 6px; }
+  .gear-dialog { width: calc(100vw - 12px); max-height: calc(100dvh - 8px); padding: 12px; border-radius: 6px; }
+  .gear-heading { gap: 7px; margin-bottom: 11px; }
+  .gear-heading h2 { max-width: 220px; font-size: 10px; }
+  .gear-heading .eyebrow { font-size: 9px; }
+  .gear-wallet { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 10px 0; }
+  .gear-wallet span { padding: 7px 8px; }
+  .gear-wallet strong { font-size: 9px; }
+  .gear-tab { min-height: 46px; font-size: 11px; }
+  .gear-content { padding-top: 11px; }
+  .gear-overview, .gear-slot-panel { padding: 9px; }
+  .gear-overview h3, .gear-set-shelf h3, .workshop-intro h3, .gear-bag-head h3, .gear-fusion-panel h3 { font-size: 13px; }
+  .gear-stat-ribbon { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+  .gear-stat-ribbon span { padding: 6px 3px; }
+  .gear-stat-ribbon small { font-size: 8px; }
+  .gear-stat-ribbon strong { font-size: 10px; }
+  .gear-loadout-grid, .gear-bag-grid, .gear-workshop-grid, .shop-gear-list, .run-gear-list { grid-template-columns: minmax(0, 1fr); }
+  .gear-card { padding: 9px; }
+  .gear-card-actions { gap: 5px; }
+  .gear-action { min-height: 42px; }
+  .gear-bag-head { align-items: flex-end; }
+  .gear-bag-head .gear-field { flex: 1 0 100%; }
+  .gear-fusion-panel { padding: 10px; }
+  .gear-fusion-panel .primary-button { width: 100%; }
+  .stone-crafting { align-items: flex-start; flex-direction: column; }
+  .stone-crafting .gear-action { width: 100%; }
+  .loot-actions { grid-template-columns: minmax(0, 1fr); }
+  .dungeon-records { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .run-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dungeon-dialog { width: calc(100vw - 14px); max-height: calc(100dvh - 8px); padding: 13px; border-radius: 6px; }
   .dungeon-heading { gap: 8px; margin-bottom: 12px; }
   .dungeon-heading h2 { max-width: 240px; font-size: 10px; }

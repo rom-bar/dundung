@@ -244,6 +244,12 @@ tests/           vitest unit tests for core
 ### Currencies
 - **Coins** (shop, home), **Scrap** (upgrades), **Essence** (Evolution Stones, from bosses).
 
+### Phase 5 implementation defaults
+- Preserve Phase 4's intentionally small run-only shop wallet and three-slot consumable pack. Gear shop purchases use run coins and enter a separate run bag; they do not become permanent until the run ends safely.
+- Keep the permanent gear bag at 20 items and cap carried gear at 20 per run. When the permanent bag is full, salvage only an incoming drop or overflowed kept item into Scrap; never delete an existing item. Auto-scrap applies only to new drops, not gear the player explicitly buys.
+- A safe return banks all carried items and materials. On faint, keep a seeded random half of carried gear and half of carried materials, matching the existing half-coin/half-token economy. Equipment changes are locked during an active run.
+- Craft one Evolution Stone for 30 Essence. This preserves the existing reroll mechanic while making boss Essence useful. These values are data-driven in `equipment-rules.json`.
+
 ### Deliverables
 - Loot drops in dungeon, inventory/equipment screens, shop room, workshop (upgrade/fuse/scrap).
 

@@ -10,6 +10,46 @@ async function openFreshGame(page: import('@playwright/test').Page): Promise<voi
   await expect(page.locator('[data-need-value="hunger"]')).not.toHaveText('—');
 }
 
+async function installDungeonFixture(page: import('@playwright/test').Page, phase: 'shop' | 'loot'): Promise<void> {
+  await page.addInitScript((fixturePhase) => {
+    const workerPrototype = Worker.prototype as unknown as { postMessage: (...args: any[]) => void };
+    const originalPostMessage = workerPrototype.postMessage;
+    workerPrototype.postMessage = function (this: Worker, message: any, ...options: any[]) {
+      const loadMessage = message as { type?: string; state?: Record<string, any> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const state = loadMessage.state;
+        const item = {
+          instanceId: `e2e-${fixturePhase}-gear`, templateId: 'emberfang-pick', rarity: 'Rare',
+          ilvl: 8, upgradeLevel: 0, rollSeed: 123, upgradeSeed: 456, inheritedAffixId: null,
+        };
+        const run = {
+          generation: 1, floor: 1, roomIndex: 0, biomeId: 'cinder-copse', petFormId: 'fire-emberguard', petElement: 'fire',
+          phase: fixturePhase, rngSeed: 73,
+          petStats: { HP: 80, ATK: 20, DEF: 15, SPD: 15, LUK: 1 },
+          runStatMultipliers: { HP: 1, ATK: 1, DEF: 1, SPD: 1, LUK: 1 }, coinMultiplier: 1,
+          petHp: 80, petMaxHp: 80, petGauge: 0, petStatuses: [],
+          equipmentEffects: { critChance: 0, lifesteal: 0, elementDamage: 0, foodEffectiveness: 0, coinFind: 0, resist: 0,
+            resistByElement: { fire: 0, water: 0, moss: 0, storm: 0, shadow: 0 }, thorns: 0, onHitStatuses: [] },
+          enemy: null, roomChoices: [], currentRoom: fixturePhase === 'shop' ? 'shop' : 'treasure', eventId: null,
+          shopOfferIds: [], shopEquipmentOffers: fixturePhase === 'shop' ? [{ id: 'e2e-shop-offer', item, price: 17 }] : [],
+          tacticId: null, consumables: [], coins: 30, lootIds: [], pendingItems: [],
+          pendingItem: fixturePhase === 'loot' ? item : null, pendingScrap: 0, pendingEssence: 0,
+          combatLog: [], combatElapsedSeconds: 0, turns: 0, result: null, bankedCoins: 0, bankedLootCount: 0,
+          lostLootCount: 0, bankedItemCount: 0, lostItemCount: 0, bankedScrap: 0, bankedEssence: 0, lostScrap: 0, lostEssence: 0,
+        };
+        const evolution = state.evolution as Record<string, unknown>;
+        loadMessage.state = {
+          ...state, stage: 'adult', sleeping: false, level: 40, peakLevel: 40, paused: false,
+          evolution: { ...evolution, formId: 'fire-emberguard', traitIds: [] },
+          formDex: ['fire-emberguard'], training: { HP: 80, ATK: 80, DEF: 80, SPD: 80, LUK: 1 },
+          dungeon: { ...(state.dungeon as Record<string, unknown>), activeRun: run },
+        };
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  }, phase);
+}
+
 test('care targets fit the viewport and meet touch size on every device', async ({ page }, testInfo) => {
   await openFreshGame(page);
   const dimensions = await page.evaluate(() => ({
@@ -136,6 +176,126 @@ test('growth HUD and Form Dex show current progress and silhouettes for undiscov
   await expect(page.locator('#hall-list')).toContainText('Past pets');
   await page.getByRole('button', { name: 'Close Form Dex' }).click();
   await expect(dex).toBeHidden();
+});
+
+test('Gear opens accessibly on every device and equips a catalog item through the worker', async ({ page }) => {
+  await page.addInitScript(() => {
+    const workerPrototype = Worker.prototype as unknown as { postMessage: (...args: any[]) => void };
+    const originalPostMessage = workerPrototype.postMessage;
+    workerPrototype.postMessage = function (this: Worker, message: any, ...options: any[]) {
+      if (message?.type === 'action' && message.action?.type === 'set-auto-scrap') {
+        const history = (window as any).__autoScrapActionHistory ?? [];
+        (window as any).__autoScrapActionHistory = [...history, message.action.threshold];
+      }
+      const loadMessage = message as { type?: string; state?: Record<string, any> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const equipment = loadMessage.state.equipment as Record<string, any>;
+        const testItem = {
+          instanceId: 'e2e-emberfang', templateId: 'emberfang-pick', rarity: 'Rare',
+          ilvl: 8, upgradeLevel: 0, rollSeed: 123, upgradeSeed: 456, inheritedAffixId: null,
+        };
+        const fuseItems = ['a', 'b', 'c'].map((suffix, index) => ({
+          ...testItem, instanceId: `e2e-fuse-${suffix}`, rarity: 'Common', rollSeed: 500 + index,
+        }));
+        const scrapItem = { ...testItem, instanceId: 'e2e-scrap-armor', templateId: 'coalcap-plate', rollSeed: 900 };
+        loadMessage.state = {
+          ...loadMessage.state,
+          equipment: { ...equipment, inventory: [testItem, ...fuseItems, scrapItem], nextItemId: 20 },
+          dungeon: { ...loadMessage.state.dungeon, scrap: 100 },
+        };
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  });
+  await openFreshGame(page);
+  const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(dimensions.scrollWidth, 'the page should not scroll horizontally').toBeLessThanOrEqual(dimensions.width);
+
+  await page.getByTestId('gear-open').click();
+  const dialog = page.getByRole('dialog', { name: 'Gear & workshop' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('tab')).toHaveCount(3);
+  await expect(dialog.locator('.gear-slot-panel')).toHaveCount(4);
+  await expect(dialog).toContainText('Emberfang Pick');
+  const equip = dialog.locator('[data-testid="gear-card-e2e-emberfang"]').getByRole('button', { name: 'Equip' });
+  await expect(equip).toBeEnabled();
+  await equip.click();
+  await expect(dialog.locator('.gear-slot-panel').first()).toContainText('Worn by Pip');
+  await expect(dialog.locator('.gear-slot-panel').first()).toContainText('Emberfang Pick');
+  await expect(dialog.locator('.gear-slot-panel').first().getByRole('button', { name: 'Unequip' })).toBeEnabled();
+
+  await dialog.getByRole('tab', { name: 'Workshop' }).click();
+  const upgradedCard = dialog.locator('[data-testid="gear-card-e2e-emberfang"]');
+  const upgrade = upgradedCard.locator('[data-gear-action="upgrade"]');
+  await expect(upgrade).toBeEnabled();
+  await upgrade.click();
+  await expect(upgradedCard.locator('.gear-level')).toContainText('+1');
+
+  await dialog.getByRole('tab', { name: 'Bag' }).click();
+  await expect(dialog.getByRole('heading', { name: 'Your bag' })).toBeVisible();
+  for (const suffix of ['a', 'b', 'c']) {
+    await dialog.locator(`[data-testid="gear-card-e2e-fuse-${suffix}"] input[data-fuse-item]`).check();
+  }
+  const fuse = dialog.getByRole('button', { name: 'Fuse into Uncommon' });
+  await expect(fuse).toBeEnabled();
+  await fuse.click();
+  await expect(dialog.locator('.gear-bag-grid .gear-card[data-rarity="Uncommon"]')).toHaveCount(1);
+  const scrapCard = dialog.locator('[data-testid="gear-card-e2e-scrap-armor"]');
+  await scrapCard.locator('[data-gear-action="scrap"]').click();
+  await expect(dialog.locator('[data-testid="gear-card-e2e-scrap-armor"]')).toHaveCount(0);
+  await expect(dialog.locator('#gear-wallet span').nth(1).locator('strong')).toHaveText('111');
+
+  const autoScrap = dialog.locator('#auto-scrap-select');
+  await expect(autoScrap).toBeEnabled();
+  await autoScrap.selectOption('Common');
+  const sentThresholds = () => page.evaluate(() => (window as unknown as { __autoScrapActionHistory?: string[] }).__autoScrapActionHistory ?? []);
+  await expect.poll(async () => (await sentThresholds()).includes('Common')).toBe(true);
+  await autoScrap.selectOption('Uncommon');
+  await expect(autoScrap).toHaveValue('Uncommon');
+  await expect.poll(async () => (await sentThresholds()).includes('Uncommon')).toBe(true);
+
+  const dialogBox = await dialog.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(dimensions.width + 1);
+  await dialog.getByRole('button', { name: 'Close gear and workshop' }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test('the traveling shop sells gear into the run bag without enabling loadout changes mid-run', async ({ page }) => {
+  await installDungeonFixture(page, 'shop');
+  await openFreshGame(page);
+  await page.getByTestId('dungeon-open').click();
+  const dungeon = page.getByRole('dialog', { name: 'The Endless Descent' });
+  await expect(dungeon).toContainText('Traveling shop');
+  await expect(dungeon.locator('.shop-gear-offer .gear-card')).toContainText('Emberfang Pick');
+  const buy = dungeon.locator('[data-run-action="buy-gear"]');
+  await expect(buy).toBeEnabled();
+  await expect(buy).toContainText('17 coins');
+  await buy.click();
+  await expect(dungeon.locator('.run-ledger span').nth(1).locator('strong')).toHaveText('1');
+
+  await dungeon.getByRole('button', { name: 'Close dungeon' }).click();
+  await page.getByTestId('gear-open').click();
+  const gear = page.getByRole('dialog', { name: 'Gear & workshop' });
+  await gear.getByRole('tab', { name: 'Bag' }).click();
+  await expect(gear.locator('[data-testid="gear-card-e2e-shop-gear"]')).toContainText('Emberfang Pick');
+  await expect(gear.locator('.run-gear-shelf [data-gear-action="equip"]')).toHaveCount(0);
+  await expect(gear).toContainText('Bag changes are locked until the current run ends');
+});
+
+test('the dungeon shows take, scrap and leave choices for a gear drop, then carries a taken item', async ({ page }) => {
+  await installDungeonFixture(page, 'loot');
+  await openFreshGame(page);
+  await page.getByTestId('dungeon-open').click();
+  const dungeon = page.getByRole('dialog', { name: 'The Endless Descent' });
+  await expect(dungeon.getByRole('heading', { name: 'Rare gear from the path' })).toBeVisible();
+  await expect(dungeon.getByRole('button', { name: 'Take gear' })).toBeEnabled();
+  await expect(dungeon.locator('[data-run-action="scrap-drop"]')).toBeEnabled();
+  await expect(dungeon.getByRole('button', { name: 'Leave it' })).toBeEnabled();
+  await dungeon.getByRole('button', { name: 'Take gear' }).click();
+  await expect(dungeon.locator('.run-ledger span').nth(1).locator('strong')).toHaveText('1');
+  await expect(dungeon.locator('.run-ledger')).toContainText('Run gear');
 });
 
 test('Dungeon run opens on desktop and mobile, enforces the three-slot pack, and resolves a fight', async ({ page }) => {

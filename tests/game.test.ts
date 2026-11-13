@@ -136,7 +136,7 @@ describe('save migration and seeded randomness', () => {
 
   it('migrates a schema-less save and repairs invalid need values', () => {
     const restored = migrateSave({ stage: 'baby', needs: { hunger: 200, happiness: 'lots' } });
-    expect(restored.schemaVersion).toBe(3);
+    expect(restored.schemaVersion).toBe(4);
     expect(restored.stage).toBe('baby');
     expect(restored.needs.hunger).toBe(100);
     expect(restored.needs.happiness).toBe(86);
@@ -155,7 +155,7 @@ describe('save migration and seeded randomness', () => {
       tendencies: { play: 0.75 },
       hallOfPets: [{ generation: 2, name: '<img src=x onerror=alert(1)>', formId: 'fire-emberguard', peakLevel: 999 }],
     });
-    expect(restored.schemaVersion).toBe(3);
+    expect(restored.schemaVersion).toBe(4);
     expect(restored.generationSeconds).toBe(123);
     expect(restored.stageSeconds).toBe(rules.lifeStages.stageMinutes.baby * 60);
     expect(restored.cooldowns.feed).toBe(rules.actionCooldownSeconds.feed);

@@ -1,0 +1,20 @@
+[
+  {"id":"iron-nibble","name":"Iron Nibble","effect":{"type":"flat-stat","stat":"attack","baseValue":4}},
+  {"id":"stout-stitch","name":"Stout Stitch","effect":{"type":"flat-stat","stat":"defense","baseValue":4}},
+  {"id":"deep-breath","name":"Deep Breath","effect":{"type":"flat-stat","stat":"hp","baseValue":18}},
+  {"id":"quick-scrabble","name":"Quick Scrabble","effect":{"type":"flat-stat","stat":"speed","baseValue":2}},
+  {"id":"brave-proportion","name":"Brave Proportion","effect":{"type":"percent-stat","stat":"attack","baseValue":0.08}},
+  {"id":"snug-proportion","name":"Snug Proportion","effect":{"type":"percent-stat","stat":"defense","baseValue":0.08}},
+  {"id":"cave-eye","name":"Cave Eye","effect":{"type":"crit","baseValue":0.04}},
+  {"id":"leeching-lick","name":"Leeching Lick","effect":{"type":"lifesteal","baseValue":0.04}},
+  {"id":"petal-prism","name":"Petal Prism","effect":{"type":"element-damage","element":"pet","baseValue":0.1}},
+  {"id":"ember-etch","name":"Ember Etch","effect":{"type":"element-damage","element":"fire","baseValue":0.12}},
+  {"id":"hearty-bite","name":"Hearty Bite","effect":{"type":"food-effectiveness","baseValue":0.12}},
+  {"id":"coin-sniffer","name":"Coin Sniffer","effect":{"type":"coin-find","baseValue":0.15}},
+  {"id":"shell-sheen","name":"Shell Sheen","effect":{"type":"resist","element":"water","baseValue":0.1}},
+  {"id":"shadowproof","name":"Shadowproof","effect":{"type":"resist","element":"shadow","baseValue":0.1}},
+  {"id":"thorny-thimble","name":"Thorny Thimble","effect":{"type":"thorns","baseValue":0.08}},
+  {"id":"singe-spite","name":"Singe Spite","effect":{"type":"on-hit-status","status":"burn","chance":0.12,"baseValue":3}},
+  {"id":"bonk-bewilder","name":"Bonk Bewilder","effect":{"type":"on-hit-status","status":"stun","chance":0.06,"baseValue":1}},
+  {"id":"mossy-mending","name":"Mossy Mending","effect":{"type":"percent-stat","stat":"healing","baseValue":0.1}}
+]

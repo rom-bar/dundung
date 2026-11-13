@@ -85,6 +85,55 @@ function drawEgg(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: 
   rect(ctx, x + 17, top + 35, 10, 3, colors.honeyShade);
 }
 
+function drawGearOverlays(ctx: CanvasRenderingContext2D, x: number, y: number, state: GameState): void {
+  const equipped = state.equipment?.equipped;
+  if (!equipped) return;
+  const rarityColor = (rarity: string): string => ({
+    Common: '#c9c2d0',
+    Uncommon: colors.mint,
+    Rare: colors.honey,
+    Epic: '#c89be8',
+    Legendary: '#f08d69',
+  })[rarity] ?? colors.honey;
+
+  const hat = equipped.Hat;
+  if (hat) {
+    const color = rarityColor(hat.rarity);
+    rect(ctx, x + 15, y + 7, 26, 3, colors.deep);
+    rect(ctx, x + 18, y + 3, 20, 5, color);
+    rect(ctx, x + 14, y + 8, 29, 3, color);
+    rect(ctx, x + 23, y + 4, 5, 2, colors.cream);
+  }
+
+  const armor = equipped.Armor;
+  if (armor) {
+    const color = rarityColor(armor.rarity);
+    rect(ctx, x + 15, y + 19, 27, 3, colors.deep);
+    rect(ctx, x + 14, y + 22, 4, 13, color);
+    rect(ctx, x + 18, y + 22, 21, 11, color);
+    rect(ctx, x + 39, y + 22, 4, 13, color);
+    rect(ctx, x + 22, y + 23, 13, 2, colors.cream);
+    rect(ctx, x + 27, y + 27, 4, 4, colors.deep);
+  }
+
+  const weapon = equipped.Weapon;
+  if (weapon) {
+    const color = rarityColor(weapon.rarity);
+    rect(ctx, x + 41, y + 28, 12, 3, color);
+    rect(ctx, x + 49, y + 23, 4, 14, color);
+    rect(ctx, x + 47, y + 36, 8, 3, colors.honeyShade);
+    rect(ctx, x + 45, y + 27, 4, 2, colors.cream);
+  }
+
+  const charm = equipped.Charm;
+  if (charm) {
+    const color = rarityColor(charm.rarity);
+    rect(ctx, x - 7, y + 27, 5, 5, color);
+    rect(ctx, x - 5, y + 23, 2, 13, colors.cream);
+    rect(ctx, x - 9, y + 28, 10, 2, colors.cream);
+  }
+}
+
 function drawBaby(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: number, sleeping: boolean, state: GameState): void {
   const x = cx - 24;
   const hop = frame % 2 === 0 ? 0 : -3;
@@ -146,6 +195,7 @@ function drawBaby(ctx: CanvasRenderingContext2D, cx: number, top: number, frame:
   }
   rect(ctx, x + 9, y + 31, 5, 4, colors.plum);
   rect(ctx, x + 41, y + 31, 5, 4, colors.plum);
+  drawGearOverlays(ctx, x, y, state);
   ctx.restore();
 }
 

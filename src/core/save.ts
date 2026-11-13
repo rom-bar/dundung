@@ -3,6 +3,7 @@ import { getAllForms, getFormDefinition, getLevelCap, getTraitDefinition } from 
 import type { Element, GameState, LifeStage, Needs, PetRecord, Stats, Tendencies } from './types';
 import { createInitialState } from './game';
 import { migrateDungeonProgress } from './dungeon';
+import { sanitizeEquipmentState } from './equipment';
 
 const maximumLevel = Math.max(...Object.values(rules.lifeStages.levelCaps));
 
@@ -45,7 +46,7 @@ function validPetRecord(value: unknown): PetRecord | null {
 export function migrateSave(input: unknown): GameState {
   if (!isRecord(input)) throw new Error('Save data is not an object.');
   const version = typeof input.schemaVersion === 'number' ? input.schemaVersion : 0;
-  if (version > 3) throw new Error(`Save version ${version} is newer than this game.`);
+  if (version > 4) throw new Error(`Save version ${version} is newer than this game.`);
 
   const base = createInitialState(typeof input.seed === 'number' ? input.seed : 1);
   const oldNeeds = isRecord(input.needs) ? input.needs : {};
@@ -126,10 +127,13 @@ export function migrateSave(input: unknown): GameState {
   const hallOfPets = Array.isArray(input.hallOfPets)
     ? input.hallOfPets.map(validPetRecord).filter((record): record is PetRecord => record !== null).slice(0, rules.progression.hallOfPetsLimit)
     : [];
+  const seenItemIds = new Set<string>();
+  const equipment = sanitizeEquipmentState(input.equipment, seenItemIds);
+  const dungeon = migrateDungeonProgress(input.dungeon, seenItemIds);
 
   return {
     ...base,
-    schemaVersion: 3,
+    schemaVersion: 4,
     seed: typeof input.seed === 'number' ? input.seed >>> 0 : base.seed,
     stage,
     stageSeconds: Math.min(nonNegative(input.stageSeconds), rules.lifeStages.stageMinutes[stage] * 60),
@@ -150,7 +154,8 @@ export function migrateSave(input: unknown): GameState {
     evolution,
     formDex,
     hallOfPets,
-    dungeon: migrateDungeonProgress(input.dungeon),
+    dungeon,
+    equipment,
     miniGameCooldownSeconds: boundedNumber(input.miniGameCooldownSeconds, 0, 0, rules.progression.miniGameCooldownSeconds),
     peakLevel: Math.floor(boundedNumber(input.peakLevel, level, level, maximumLevel)),
   };

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "slots": ["Weapon", "Armor", "Hat", "Charm"],
+  "elements": ["fire", "moss", "water", "storm", "shadow"],
+  "statFormula": {
+    "expression": "baseStat * (1 + 0.06 * ilvl) * rarityMultiplier * random(0.8, 1.2)",
+    "ilvl": "floor + randomInteger(0, 2)",
+    "randomRange": { "min": 0.8, "max": 1.2 },
+    "ilvlBonusPerLevel": 0.06,
+    "floorRoll": { "min": 0, "max": 2 },
+    "rounding": "nearest-integer for flat stats; three decimals for percentages"
+  },
+  "rarities": {
+    "Common": { "weight": 60, "chance": 0.6, "multiplier": 1, "affixCount": 0 },
+    "Uncommon": { "weight": 25, "chance": 0.25, "multiplier": 1.2, "affixCount": 1 },
+    "Rare": { "weight": 10, "chance": 0.1, "multiplier": 1.5, "affixCount": 2 },
+    "Epic": { "weight": 4, "chance": 0.04, "multiplier": 1.9, "affixCount": 3 },
+    "Legendary": { "weight": 1, "chance": 0.01, "multiplier": 2.5, "affixCount": 4, "uniqueEffect": true }
+  },
+  "rarityRoll": { "totalWeight": 100, "rareAndAboveLuckWeightMultiplier": "1 + LUK / 200", "rareAndAboveLuckMinimum": 0, "luckMathCap": 200 },
+  "affixRoll": { "valueFormula": "baseAffix * rarityMultiplier * ilvlScale * random(0.8, 1.2)", "ilvlScaleFormula": "1 + 0.06 * ilvl", "ilvlScalePerLevel": 0.06, "randomRange": { "min": 0.8, "max": 1.2 }, "duplicateAffixesAllowed": false },
+  "caps": { "critChance": 0.5, "lifesteal": 0.5, "resist": 0.75, "foodEffectiveness": 3, "coinFind": 5, "thorns": 1, "elementDamage": 3, "maximumItemLevel": 1000, "maximumStoredCurrency": 1000000000 },
+  "dropPolicy": {
+    "normal": { "itemCount": { "min": 0, "max": 1 }, "commonChance": 0.2, "rarityFloor": "Common", "ilvlFloorSource": "floor" },
+    "elite": { "itemCount": { "min": 1, "max": 1 }, "rarityFloor": "Uncommon", "ilvlFloorSource": "floor" },
+    "boss": { "itemCount": { "min": 1, "max": 1 }, "rarityFloor": "Rare", "ilvlFloorSource": "floor", "essenceYield": { "min": 8, "max": 12 } },
+    "treasure": { "itemCount": { "min": 1, "max": 1 }, "guaranteesItem": true, "rarityFloor": "Common", "ilvlFloorSource": "floor" }
+  },
+  "inventory": { "capacity": 20, "pendingItemsPerRunCap": 20, "fullBagOverflow": "auto-scrap-incoming-item-only-with-message", "overflowNeverScrapsExistingItems": true, "autoScrapDefault": "off" },
+  "scrap": { "yieldByRarity": { "Common": 2, "Uncommon": 5, "Rare": 12, "Epic": 30, "Legendary": 75 }, "upgradeCostFormula": "ceil(10 * 1.5^n)", "upgradeCostExponentBase": 1.5, "upgradeCostBase": 10 },
+  "upgrades": { "maximumLevel": 10, "startingLevel": 0, "successChanceByTargetLevel": { "1": 1, "2": 1, "3": 1, "4": 1, "5": 1, "6": 0.85, "7": 0.75, "8": 0.65, "9": 0.55, "10": 0.45 }, "guaranteedThroughLevel": 5, "statBonusPerLevel": 0.08, "failureResult": "downgrade-one-level", "minimumLevel": 0, "failureNeverDestroys": true },
+  "fusion": { "inputCount": 3, "requiresSameSlot": true, "requiresSameRarity": true, "rarityOrder": ["Common", "Uncommon", "Rare", "Epic", "Legendary"], "outputRarity": "next-rarity", "keepsOneChosenAffix": true, "outputLevel": 0 },
+  "shop": { "offerCount": 3, "itemPriceFactorsByRarity": { "Common": 1, "Uncommon": 1.8, "Rare": 3.5, "Epic": 7, "Legendary": 15 }, "priceFormula": "round(basePrice * rarityPriceFactor * (1 + 0.06 * ilvl))", "refreshCost": 25 },
+  "currencies": { "bossEssenceYield": { "min": 8, "max": 12 }, "essencePerEvolutionStone": 30 },
+  "legendaryEffects": [
+    { "id": "heart-of-the-volcano", "name": "Heart of the Volcano", "effect": { "type": "element-damage", "element": "fire", "value": 0.3 } },
+    { "id": "evergreen-pulse", "name": "Evergreen Pulse", "effect": { "type": "food-effectiveness", "value": 0.4 } },
+    { "id": "tide-turner", "name": "Tide Turner", "effect": { "type": "lifesteal", "value": 0.15 } },
+    { "id": "storm-in-a-stone", "name": "Storm in a Stone", "effect": { "type": "crit", "value": 0.15 } },
+    { "id": "quiet-between-echoes", "name": "Quiet Between Echoes", "effect": { "type": "resist", "element": "shadow", "value": 0.25 } },
+    { "id": "pet-friendship", "name": "Pet Friendship", "effect": { "type": "element-damage", "element": "pet", "value": 0.25 } }
+  ]
+}

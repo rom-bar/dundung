@@ -1,6 +1,7 @@
 import evolutions from '../data/evolutions.json';
 import rules from '../data/rules.json';
 import traitsJson from '../data/traits.json';
+import { applyEquipmentToStats } from './equipment';
 import { nextRandom } from './rng';
 import type {
   Archetype,
@@ -183,7 +184,7 @@ export function getEffectiveStats(state: GameState): Stats {
     });
     result[stat] = Math.max(1, Math.floor(value * elderDecline));
   });
-  return result;
+  return applyEquipmentToStats(result, state.equipment);
 }
 
 export function updateTendency(state: GameState, key: TendencyKey, signal = rules.progression.tendencySignals.default): GameState {

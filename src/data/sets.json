@@ -1,0 +1,7 @@
+[
+  {"id":"cinderburrow","name":"Cinderburrow Regalia","element":"fire","bonuses":{"2":[{"type":"element-damage","element":"fire","value":0.15}],"4":[{"type":"on-hit-status","status":"burn","chance":0.2,"value":4}]}},
+  {"id":"verdantgrotto","name":"Verdant Grotto Garb","element":"moss","bonuses":{"2":[{"type":"resist","element":"moss","value":0.15}],"4":[{"type":"food-effectiveness","value":0.25}]}},
+  {"id":"tidalhollow","name":"Tidal Hollow Raiment","element":"water","bonuses":{"2":[{"type":"lifesteal","value":0.08}],"4":[{"type":"flat-stat","stat":"hp","value":30}]}},
+  {"id":"stormvault","name":"Stormvault Kit","element":"storm","bonuses":{"2":[{"type":"crit","value":0.08}],"4":[{"type":"on-hit-status","status":"stun","chance":0.12,"value":1}]}},
+  {"id":"gloamdeep","name":"Gloamdeep Shroud","element":"shadow","bonuses":{"2":[{"type":"element-damage","element":"shadow","value":0.15}],"4":[{"type":"percent-stat","stat":"speed","value":0.12}]}}
+]
