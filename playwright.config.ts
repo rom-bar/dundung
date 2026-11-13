@@ -29,6 +29,10 @@ export default defineConfig({
       use: { ...devices['iPhone 13'], browserName: 'chromium', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
     },
     {
+      name: 'phone-412',
+      use: { ...devices['iPhone 13'], browserName: 'chromium', viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true },
+    },
+    {
       name: 'landscape-740',
       use: { ...devices['iPhone 13 mini'], browserName: 'chromium', viewport: { width: 740, height: 360 }, isMobile: true, hasTouch: true },
     },

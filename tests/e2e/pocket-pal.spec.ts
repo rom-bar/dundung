@@ -766,6 +766,129 @@ test('left-handed mode mirrors the visual order of both care banks', async ({ pa
   expect(rtl[2]).toBeGreaterThan(rtl[3]);
 });
 
+test('all training games fit narrow viewports and expose tappable controls', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'desktop-1280' || testInfo.project.name === 'tablet-768', 'mobile-width regression check');
+  await installHatchedFixture(page);
+  await openFreshGame(page);
+
+  for (const game of [
+    { name: /Quick Spark/, control: '#reaction-pad' },
+    { name: /Echo Garden/, control: '.memory-grid' },
+    { name: /Beat Bubbles/, control: '#rhythm-pad' },
+  ]) {
+    await page.getByTestId('minigames-open').click();
+    const dialog = page.getByRole('dialog', { name: 'Training games' });
+    await dialog.getByRole('button', { name: game.name }).click();
+    const control = page.locator(game.control);
+    await control.scrollIntoViewIfNeeded();
+    await expect(control).toBeVisible();
+    const bounds = await page.evaluate((selector) => {
+      const dialog = document.querySelector<HTMLDialogElement>('#minigame-dialog')!;
+      const stage = document.querySelector<HTMLElement>('#minigame-stage')!;
+      const control = stage.querySelector<HTMLElement>(selector)!;
+      const rect = (element: Element) => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+      };
+      const box = rect(control);
+      const row = stage.querySelector<HTMLElement>('.rhythm-row');
+      const dots = [...(row?.querySelectorAll('.rhythm-beat') ?? [])].map(rect);
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        dialog: rect(dialog), stage: rect(stage), control: box, row: row ? rect(row) : null, dots,
+        close: rect(document.querySelector<HTMLButtonElement>('#minigame-close')!),
+        widths: { document: document.documentElement.scrollWidth, dialog: dialog.scrollWidth, dialogClient: dialog.clientWidth, stage: stage.scrollWidth, stageClient: stage.clientWidth, row: row?.scrollWidth ?? 0, rowClient: row?.clientWidth ?? 0 },
+      };
+    }, game.control);
+    expect(bounds.widths.document).toBeLessThanOrEqual(bounds.viewport.width);
+    expect(bounds.widths.dialog).toBeLessThanOrEqual(bounds.widths.dialogClient + 1);
+    expect(bounds.widths.stage).toBeLessThanOrEqual(bounds.widths.stageClient + 1);
+    expect(bounds.control.left).toBeGreaterThanOrEqual(bounds.stage.left);
+    expect(bounds.control.right).toBeLessThanOrEqual(bounds.stage.right + 1);
+    expect(bounds.close.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.close.right).toBeLessThanOrEqual(bounds.viewport.width);
+    expect(bounds.close.top).toBeGreaterThanOrEqual(bounds.dialog.top);
+    expect(bounds.close.bottom).toBeLessThanOrEqual(bounds.dialog.bottom);
+    if (bounds.row) {
+      expect(bounds.widths.row).toBeLessThanOrEqual(bounds.widths.rowClient + 1);
+      for (const dot of bounds.dots) {
+        expect(dot.left).toBeGreaterThanOrEqual(bounds.row.left - 1);
+        expect(dot.right).toBeLessThanOrEqual(bounds.row.right + 1);
+      }
+    } else {
+      expect(bounds.control.height).toBeGreaterThanOrEqual(48);
+    }
+    if (game.name.source === 'Beat Bubbles') {
+      expect(bounds.control.height).toBeGreaterThanOrEqual(56);
+      const screenshotName: Record<string, string> = {
+        'phone-320': 'pocket-pal-320-beat-bubbles.png',
+        'phone-360': 'pocket-pal-360-beat-bubbles.png',
+        'landscape-740': 'pocket-pal-740-landscape-beat-bubbles.png',
+      };
+      const screenshot = screenshotName[testInfo.project.name];
+      if (screenshot) {
+        mkdirSync(screenshotDir, { recursive: true });
+        await page.screenshot({ path: resolve(screenshotDir, screenshot), scale: 'css' });
+      }
+      await page.getByRole('button', { name: 'Tap with the beat' }).tap();
+    }
+    await page.locator('#minigame-close').click();
+  }
+});
+
+test('every app dialog and its main tab panels stay within mobile viewports', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'desktop-1280' || testInfo.project.name === 'tablet-768', 'mobile overflow audit');
+  await installHatchedFixture(page);
+  await openFreshGame(page);
+
+  const audit = async (selector: string) => {
+    const dimensions = await page.evaluate((dialogSelector) => {
+      const dialog = document.querySelector<HTMLDialogElement>(dialogSelector)!;
+      const box = dialog.getBoundingClientRect();
+      const close = dialog.querySelector<HTMLButtonElement>('.dialog-close')!.getBoundingClientRect();
+      const outside = [...dialog.querySelectorAll<HTMLElement>('*')].filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && (rect.left < -1 || rect.right > innerWidth + 1);
+      }).map((element) => ({ tag: element.tagName, text: element.textContent?.trim().slice(0, 60), left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right }));
+      return { viewport: innerWidth, document: document.documentElement.scrollWidth, box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom }, close: { left: close.left, right: close.right, top: close.top, bottom: close.bottom }, scroll: dialog.scrollWidth, client: dialog.clientWidth, outside };
+    }, selector);
+    expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.box.left).toBeGreaterThanOrEqual(-1);
+    expect(dimensions.box.right).toBeLessThanOrEqual(dimensions.viewport + 1);
+    expect(dimensions.close.left).toBeGreaterThanOrEqual(-1);
+    expect(dimensions.close.right).toBeLessThanOrEqual(dimensions.viewport + 1);
+    expect(dimensions.close.top).toBeGreaterThanOrEqual(-1);
+    expect(dimensions.close.bottom).toBeLessThanOrEqual(await page.evaluate(() => innerHeight + 1));
+    expect(dimensions.outside).toEqual([]);
+  };
+  const dialogs = [
+    { open: '#about-open', close: '#about-close', dialog: '#about-dialog' },
+    { open: '#settings-open', close: '#settings-close', dialog: '#settings-dialog' },
+    { open: '#forms-open', close: '#dex-close', dialog: '#dex-dialog' },
+    { open: '#gear-open', close: '#gear-close', dialog: '#gear-dialog' },
+    { open: '#home-open', close: '#home-close', dialog: '#home-dialog' },
+    { open: '#minigames-open', close: '#minigame-close', dialog: '#minigame-dialog' },
+    { open: '#dungeon-open', close: '#dungeon-close', dialog: '#dungeon-dialog' },
+  ];
+  for (const entry of dialogs) {
+    await page.locator(entry.open).click();
+    await expect(page.locator(entry.dialog)).toBeVisible();
+    await audit(entry.dialog);
+    if (entry.dialog === '#gear-dialog') {
+      for (const name of ['Bag', 'Workshop']) {
+        await page.getByRole('tab', { name }).click();
+        await audit(entry.dialog);
+      }
+    } else if (entry.dialog === '#home-dialog') {
+      for (const name of ['Achievements', 'Records', 'Endless']) {
+        await page.getByRole('tab', { name }).click();
+        await audit(entry.dialog);
+      }
+    }
+    await page.locator(entry.close).click();
+  }
+});
+
 test('care keyboard shortcuts still work on desktop', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-1280', 'keyboard shortcut check is for desktop');
   await openFreshGame(page);
