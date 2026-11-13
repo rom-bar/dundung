@@ -1,6 +1,6 @@
 # Pocket Pal
 
-A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phases 1–5**: the care loop, mini mode, life stages, stats, training, form collection, the endless dungeon, and loot-driven equipment.
+A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phases 1–6**: the care loop, mini mode, life stages, stats, training, form collection, the endless dungeon, loot-driven equipment, and Home meta-progression.
 
 **Live site:** <https://rom-bar.github.io/dundung/> (available after GitHub Pages is enabled and the first deployment succeeds).
 
@@ -14,15 +14,23 @@ On supported browsers, open **Mini** before switching apps to keep Pip's needs m
 
 ## Dungeon runs (Phase 4)
 
-After Pip hatches, open **Dungeon** and pack up to three run-only consumables for healing, cleansing, or short stat boosts. Each floor offers three different room paths; fights run automatically after choosing a tactic, while events, treasure, rest stops, and shops ask for a small decision. The floor-end screen is a natural stop: descend for more rewards, or leave to bank the run's coins and treasure-token value into Pip's coin balance. If Pip faints, half the run coins and a random half of tokens are kept, the pack is lost, and Pip returns with zero energy. Event boons and curses affect only that run. This phase has no equipment, crafting, or permanent item inventory; those begin in Phase 5.
+After Pip hatches, open **Dungeon** and pack up to three run-only consumables for healing, cleansing, or short stat boosts. Kitchen upgrades in Phase 6 can expand this to five slots. Each floor offers three different room paths; fights run automatically after choosing a tactic, while events, treasure, rest stops, and shops ask for a small decision. The floor-end screen is a natural stop: descend for more rewards, or leave to bank the run's coins and treasure-token value into Pip's coin balance. If Pip faints, half the run coins and a random half of tokens are kept, the pack is lost, and Pip returns with zero energy. Event boons and curses affect only that run. This phase has no equipment, crafting, or permanent item inventory; those begin in Phase 5.
 
 ## Gear and Workshop (Phase 5)
 
 Open **Gear** to equip a Weapon, Armor, Hat, or Charm. Item stats are rolled deterministically from the floor, rarity, and item seed; rarity and affixes are shown on each card, and the Loadout tab compares the stat change before you equip an item. Matching sets add two-piece and four-piece bonuses. Equipped gear is drawn as rarity-colored pixel overlays on Pip.
 
-The Bag holds up to 20 permanent items. Scrap unwanted gear for material, set an auto-scrap rarity threshold for future drops, upgrade items up to +10, or fuse three matching slot-and-rarity items into the next rarity. Higher-rarity fusion keeps one selected affix. An Evolution Stone can be crafted from 30 Essence. These changes are locked while Pip is inside a run.
+The Bag holds up to 20 permanent items. Scrap unwanted gear for material, set an auto-scrap rarity threshold for future drops, upgrade items up to +10, or fuse three matching slot-and-rarity items into the next rarity. Higher-rarity fusion keeps one selected affix. Fusion uses a small, data-driven base Scrap fee that Workshop upgrades reduce. An Evolution Stone can be crafted from 30 Essence. These changes are locked while Pip is inside a run.
 
 Dungeon gear is temporary until the run ends: choose **Take**, **Scrap**, or **Leave** for each drop, and shop purchases enter a separate run bag. A safe return banks gear and materials; a faint loses a random half of carried gear and half of carried materials. If a kept item cannot fit in the permanent bag, only that incoming item is salvaged for Scrap—existing items are never removed. This keeps the Phase 4 small run-coin and three-slot consumable economy intact while adding equipment in Phase 5.
+
+## Home, achievements, and records (Phase 6)
+
+Open **Home** to spend banked coins on five upgrades, each up to level 5. Each level costs `floor(50 × 1.6^current-level)` coins. Kitchen makes snacks stronger, adds pack slots at levels 2 and 4, and improves a free one-run meal (+10% to one selected stat at level 0, scaling by 2 percentage points per Kitchen level up to 20%). A meal is used only after a valid dungeon run starts.
+
+Gym raises training caps and mini-game rewards. Workshop reduces equipment upgrade and fusion costs and adds five permanent bag spaces per level. Nursery improves stat legacy and passes down an extra trait at level 3. Library makes each discovered form add a small stat bonus; at level 1 it reveals a basic evolution clue, and at level 3 it shows the current top three form-weight hints without exposing undiscovered form names.
+
+Achievements track Form Dex discoveries, depth, boss firsts, and gear sets. Coins, Essence, and keepsakes are awarded once when a goal is reached. **Records** shows lifetime room clears, bosses, safe returns, faints, best depth, coins banked, forms, and equipped set counts. Phase 6 uses save schema v5; existing v4 saves migrate automatically.
 
 Use the care buttons or keyboard shortcuts: **1–3** offer the three snacks, **P** plays, **S** toggles sleep, and **C** cleans. On portrait phones, the care buttons stick to the bottom when the care section is in view. Open **Settings** to switch Sound or CRT scanlines, choose button size and opacity, mirror the care controls for a left-handed layout, or enable a short touch haptic. These preferences stay on this device. Buttons act once per press; holding them never repeats a care action. The small hash router uses `#/` for the home screen and `#/about` for the About page, which explains the original-content policy.
 
@@ -58,10 +66,11 @@ Gameplay tuning and form definitions live in JSON under `src/data/` rather than 
 - `foods.json` defines the three snacks and their effects. To add a snack, give it a unique `id`, display `name`, `description`, numeric `hunger`, `happiness`, `energy`, and `hygiene` effects, plus descriptive `tags`. The UI creates a snack button from the data automatically.
 - `rules.json` defines need bounds and signal thresholds, per-need signal cooldowns, starting needs, awake/sleeping decay, stage timing and level caps, XP rewards, mini-game durations/scoring/cooldowns, tendency signals, action cooldowns/effects, animation timing, worker/save intervals, and toast queue limits.
 - `evolutions.json` defines the 20 element/archetype forms, rarity weights and pity, care affinities, elemental and archetype stat multipliers, base stats, and level growth. `traits.json` defines passive, mutation, and drawback effects.
-- `dungeon-rules.json`, `rooms.json`, `biomes.json`, `enemies.json`, `skills.json`, and `pet-skills.json` define floor pacing, encounter weights, combat tuning, biome themes, enemies, skills, and drops. `events.json`, `consumables.json`, `tactics.json`, and `loot.json` define event choices, the three-slot run pack, combat plans, shops, and treasure-token values.
+- `dungeon-rules.json`, `rooms.json`, `biomes.json`, `enemies.json`, `skills.json`, and `pet-skills.json` define floor pacing, encounter weights, combat tuning, biome themes, enemies, skills, and drops. `events.json`, `consumables.json`, `tactics.json`, and `loot.json` define event choices, the run pack, combat plans, shops, and treasure-token values.
 - `items.json`, `affixes.json`, `sets.json`, and `equipment-rules.json` define gear templates, affix effects, set bonuses, rarity/drop weights, upgrade and fusion rules, capacity and materials. Item behavior is generated from seeded state rather than stored as executable code.
+- `home.json` defines the five Home upgrade curves and effects; `achievements.json` defines milestone progress and one-time coin, Essence, and cosmetic rewards.
 
-Phase 4's wallet and pack are intentionally small and run-focused. Phase 5 adds the separate persistent gear bag, Scrap and Essence; it does not add home upgrades or paid services. Home upgrades are Phase 6.
+Phase 4's wallet and pack are intentionally small and run-focused. Phase 5 adds the separate persistent gear bag, Scrap and Essence; Phase 6 adds Home upgrades and achievements, with no paid services.
 
 ## Mini mode support matrix
 
@@ -76,7 +85,7 @@ Mini mode prefers the Document Picture-in-Picture API. If that API is missing or
 
 ## Tests and acceptance checks
 
-`npm run test:unit` covers clamped simulation steps, care, stage transitions, seeded evolution and loot, affix ranges, rarity luck, set bonuses, equip/unequip and full-bag limits, upgrade/fusion rules, run settlement and overflow, dungeon combat, save migration, and sprite overlays. `npm run test:e2e` checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for overflow, touch targets, settings, Form Dex, training, Gear actions, dungeon shops and loot choices, and offline behavior. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) includes real-device checks emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
+`npm run test:unit` covers care, progression, deterministic evolution weights, Home upgrades, meals, achievements, legacy inheritance, v4-to-v5 migration, equipment, dungeon settlement, and sprite overlays. `npm run test:e2e` checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for overflow, touch targets, settings, Form Dex, training, Home upgrades and meals, Gear actions, dungeon shops and loot choices, and offline behavior. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) includes real-device checks emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
 
 ## Original content
 

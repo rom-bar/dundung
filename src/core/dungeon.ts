@@ -21,6 +21,7 @@ import {
   sanitizeEquipmentItem,
   shouldAutoScrap,
 } from './equipment';
+import { getHomeEffects } from './home';
 import { nextRandom } from './rng';
 import type {
   ActionResult,
@@ -262,7 +263,7 @@ function safeShopEquipmentOffers(value: unknown, seenItemIds: Set<string>): Dung
   });
 }
 
-function safeRun(value: unknown, seenItemIds: Set<string>): DungeonRunState | null {
+function safeRun(value: unknown, seenItemIds: Set<string>, packSlotLimit: number, inventoryCapacity: number): DungeonRunState | null {
   if (!isRecord(value)) return null;
   const phases: DungeonPhase[] = ['choice', 'tactic', 'combat', 'loot', 'event', 'treasure', 'rest', 'shop', 'floor-end', 'summary'];
   const phase = phases.includes(value.phase as DungeonPhase) ? value.phase as DungeonPhase : null;
@@ -317,7 +318,7 @@ function safeRun(value: unknown, seenItemIds: Set<string>): DungeonRunState | nu
     shopOfferIds: Array.isArray(value.shopOfferIds) ? [...new Set(value.shopOfferIds.filter((id): id is string => typeof id === 'string' && consumables.some((item) => item.id === id)))].slice(0, dungeonRules.shopOfferCount) : [],
     shopEquipmentOffers: safeShopEquipmentOffers(value.shopEquipmentOffers, seenItemIds),
     tacticId: typeof value.tacticId === 'string' && tactics.some((item) => item.id === value.tacticId) ? value.tacticId : null,
-    consumables: Array.isArray(value.consumables) ? value.consumables.filter((id): id is string => typeof id === 'string' && consumables.some((item) => item.id === id)).slice(0, dungeonRules.packSlots) : [],
+    consumables: Array.isArray(value.consumables) ? value.consumables.filter((id): id is string => typeof id === 'string' && consumables.some((item) => item.id === id)).slice(0, packSlotLimit) : [],
     coins: Math.floor(boundedNumber(value.coins, 0, 0, maximumStoredCoins)),
     lootIds: Array.isArray(value.lootIds) ? value.lootIds.filter((id): id is string => typeof id === 'string' && loot.some((item) => item.id === id)).slice(0, 100) : [],
     pendingItems,
@@ -331,7 +332,7 @@ function safeRun(value: unknown, seenItemIds: Set<string>): DungeonRunState | nu
     bankedCoins: Math.floor(boundedNumber(value.bankedCoins, 0, 0, maximumStoredCoins)),
     bankedLootCount: Math.floor(boundedNumber(value.bankedLootCount, 0, 0, 100)),
     lostLootCount: Math.floor(boundedNumber(value.lostLootCount, 0, 0, 100)),
-    bankedItemCount: Math.floor(boundedNumber(value.bankedItemCount, 0, 0, equipmentRules.inventory.capacity)),
+    bankedItemCount: Math.floor(boundedNumber(value.bankedItemCount, 0, 0, inventoryCapacity)),
     lostItemCount: Math.floor(boundedNumber(value.lostItemCount, 0, 0, equipmentRules.inventory.pendingItemsPerRunCap)),
     bankedScrap: Math.floor(boundedNumber(value.bankedScrap, 0, 0, maximumStoredMaterials)),
     bankedEssence: Math.floor(boundedNumber(value.bankedEssence, 0, 0, maximumStoredMaterials)),
@@ -342,7 +343,12 @@ function safeRun(value: unknown, seenItemIds: Set<string>): DungeonRunState | nu
   return run;
 }
 
-export function migrateDungeonProgress(value: unknown, seenItemIds = new Set<string>()): DungeonProgress {
+export function migrateDungeonProgress(
+  value: unknown,
+  seenItemIds = new Set<string>(),
+  packSlotLimit = dungeonRules.packSlots,
+  inventoryCapacity = equipmentRules.inventory.capacity,
+): DungeonProgress {
   if (!isRecord(value)) return createEmptyDungeonProgress();
   return {
     coins: Math.floor(boundedNumber(value.coins, 0, 0, maximumStoredCoins)),
@@ -351,7 +357,7 @@ export function migrateDungeonProgress(value: unknown, seenItemIds = new Set<str
     deepestFloor: Math.floor(boundedNumber(value.deepestFloor, 0, 0, 1_000_000)),
     petDeepestFloor: Math.floor(boundedNumber(value.petDeepestFloor, 0, 0, 1_000_000)),
     runsCompleted: Math.floor(boundedNumber(value.runsCompleted, 0, 0, 1_000_000)),
-    activeRun: safeRun(value.activeRun, seenItemIds),
+    activeRun: safeRun(value.activeRun, seenItemIds, packSlotLimit, inventoryCapacity),
   };
 }
 
@@ -427,13 +433,18 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
   if (state.stage === 'egg' || !state.evolution.formId) return { state, accepted: false, message: 'Wait until Pip has hatched before starting a run.' };
   if (state.sleeping) return { state, accepted: false, message: 'Wake Pip before starting a run.' };
   if (state.dungeon.activeRun) return { state, accepted: false, message: 'Finish the current run before starting another.' };
-  if (!Array.isArray(packIds) || packIds.length > dungeonRules.packSlots || new Set(packIds).size !== packIds.length || packIds.some((id) => !consumables.some((item) => item.id === id))) {
-    return { state, accepted: false, message: `Choose up to ${dungeonRules.packSlots} different pack items.` };
+  const homeEffects = getHomeEffects(state.home, state.formDex.length);
+  if (!Array.isArray(packIds) || packIds.length > homeEffects.packSlots || new Set(packIds).size !== packIds.length || packIds.some((id) => !consumables.some((item) => item.id === id))) {
+    return { state, accepted: false, message: `Choose up to ${homeEffects.packSlots} different pack items.` };
   }
   const form = getFormDefinition(state.evolution.formId);
   if (!form) return { state, accepted: false, message: 'Pip needs a known form before entering the dungeon.' };
   const petStats = getEffectiveStats(state);
   const equipmentEffects = getEquipmentCombatEffects(state.equipment, form.element);
+  const meal = state.home.preparedMeal;
+  const runStatMultipliers: Stats = { HP: 1, ATK: 1, DEF: 1, SPD: 1, LUK: 1 };
+  if (meal) runStatMultipliers[meal.stat] = 1 + meal.bonus;
+  const runMaxHp = Math.max(1, Math.round(petStats.HP * runStatMultipliers.HP));
   const rng = makeRng((state.seed ^ Math.imul(state.dungeon.runsCompleted + 1, 0x9e3779b9)) >>> 0);
   const run: DungeonRunState = {
     generation: state.generation,
@@ -445,10 +456,10 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     phase: 'choice',
     rngSeed: rng.seed,
     petStats,
-    runStatMultipliers: { HP: 1, ATK: 1, DEF: 1, SPD: 1, LUK: 1 },
+    runStatMultipliers,
     coinMultiplier: Math.min(dungeonRules.maxRunCoinMultiplier, 1 + equipmentEffects.coinFind),
-    petHp: petStats.HP,
-    petMaxHp: petStats.HP,
+    petHp: runMaxHp,
+    petMaxHp: runMaxHp,
     petGauge: 0,
     petStatuses: [],
     equipmentEffects,
@@ -466,7 +477,7 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     pendingItem: null,
     pendingScrap: 0,
     pendingEssence: 0,
-    combatLog: ['The descent begins. Choose a path.'],
+    combatLog: [meal ? `The descent begins. Kitchen meal boosts ${meal.stat} by ${Math.round(meal.bonus * 100)}% this run.` : 'The descent begins. Choose a path.'],
     combatElapsedSeconds: 0,
     turns: 0,
     result: null,
@@ -481,13 +492,20 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     lostEssence: 0,
   };
   const nextRun = updateChoices(run, rng);
+  // The meal is a one-run snapshot, consumed only after all start checks succeed.
+  const nextHome = meal ? { ...state.home, preparedMeal: null } : state.home;
+  const nextRecords = { ...state.records, bestRunFloor: Math.max(state.records.bestRunFloor, nextRun.floor) };
   const dungeon = {
     ...state.dungeon,
     deepestFloor: Math.max(state.dungeon.deepestFloor, nextRun.floor),
     petDeepestFloor: nextRun.generation === state.generation ? Math.max(state.dungeon.petDeepestFloor, nextRun.floor) : state.dungeon.petDeepestFloor,
     activeRun: nextRun,
   };
-  return { state: { ...state, dungeon }, accepted: true, message: `Pip enters ${getBiomeForFloor(nextRun.floor).name}.` };
+  return {
+    state: { ...state, home: nextHome, records: nextRecords, dungeon },
+    accepted: true,
+    message: `Pip enters ${getBiomeForFloor(nextRun.floor).name}.${meal ? ` The meal boosts ${meal.stat} by ${Math.round(meal.bonus * 100)}% for this run.` : ''}`,
+  };
 }
 
 function spawnEnemy(run: DungeonRunState, kind: EnemyKind, rng: RngCursor): DungeonEnemyState | null {
@@ -657,7 +675,7 @@ function stageEquipmentDrop(
   );
   if (!item) return { state, run, awaitingChoice: false, message: '' };
   const nextState = { ...state, equipment: allocation.equipment };
-  const inventoryCapacity = equipmentRules.inventory.capacity;
+  const inventoryCapacity = getHomeEffects(state.home).inventoryCapacity;
   const full = state.equipment.inventory.length + run.pendingItems.length >= inventoryCapacity
     || run.pendingItems.length >= equipmentRules.inventory.pendingItemsPerRunCap;
   if (full || shouldAutoScrap(item, state.equipment.autoScrapThrough)) {
@@ -692,10 +710,11 @@ function endRun(state: GameState, run: DungeonRunState, result: 'left' | 'fainte
   const retainedScrap = result === 'left' ? run.pendingScrap : Math.floor(run.pendingScrap / 2);
   const retainedEssence = result === 'left' ? run.pendingEssence : Math.floor(run.pendingEssence / 2);
   let equipment = state.equipment;
+  const inventoryCapacity = getHomeEffects(state.home).inventoryCapacity;
   let overflowScrap = 0;
   let bankedItemCount = 0;
   for (const item of keptItems) {
-    if (equipment.inventory.length < equipmentRules.inventory.capacity) {
+    if (equipment.inventory.length < inventoryCapacity) {
       equipment = { ...equipment, inventory: [...equipment.inventory, item] };
       bankedItemCount += 1;
     } else {
@@ -704,6 +723,13 @@ function endRun(state: GameState, run: DungeonRunState, result: 'left' | 'fainte
   }
   const bankedScrap = Math.min(maximumStoredMaterials, retainedScrap + overflowScrap);
   const bankedEssence = Math.min(maximumStoredMaterials, retainedEssence);
+  const records = {
+    ...state.records,
+    runsLeftSafely: Math.min(1_000_000_000, state.records.runsLeftSafely + (result === 'left' ? 1 : 0)),
+    runsFainted: Math.min(1_000_000_000, state.records.runsFainted + (result === 'fainted' ? 1 : 0)),
+    bestRunFloor: Math.max(state.records.bestRunFloor, run.floor),
+    totalCoinsBanked: Math.min(1_000_000_000, state.records.totalCoinsBanked + bankedCoins),
+  };
   const nextRun: DungeonRunState = {
     ...pushLog(run, result === 'left' ? 'Pip leaves the dungeon safely.' : 'Pip fainted; half the carried gear and materials were lost, and the pack was lost.'),
     phase: 'summary',
@@ -733,6 +759,7 @@ function endRun(state: GameState, run: DungeonRunState, result: 'left' | 'fainte
   const nextState: GameState = {
     ...state,
     equipment,
+    records,
     needs: result === 'fainted' ? { ...state.needs, energy: 0 } : state.needs,
     sleeping: false,
     dungeon: {
@@ -778,7 +805,19 @@ function rewardCombatVictory(state: GameState, run: DungeonRunState, rng: RngCur
   nextRun = rollLootDrops(nextRun, enemy.lootDrops, rng);
   const kind = enemy.kind;
   const xp = dungeonRules.xpRewards[kind];
-  let nextState = awardXp(state, xp);
+  const isBoss = kind === 'boss';
+  const records = {
+    ...state.records,
+    totalRoomsCleared: Math.min(1_000_000_000, state.records.totalRoomsCleared + 1),
+    bossesDefeated: Math.min(1_000_000_000, state.records.bossesDefeated + (isBoss ? 1 : 0)),
+    bestRunFloor: Math.max(state.records.bestRunFloor, run.floor),
+  };
+  const home = isBoss ? {
+    ...state.home,
+    bossFirstBiomes: state.home.bossFirstBiomes.includes(run.biomeId) ? state.home.bossFirstBiomes : [...state.home.bossFirstBiomes, run.biomeId],
+    bossClearedFloors: state.home.bossClearedFloors.includes(run.floor) ? state.home.bossClearedFloors : [...state.home.bossClearedFloors, run.floor],
+  } : state.home;
+  let nextState: GameState = { ...awardXp(state, xp), home, records };
   nextState = updateTendency(nextState, 'fight');
   nextRun = pushLog(nextRun, `${enemy.name} is defeated. +${xp} XP.`);
   const policy = equipmentRules.dropPolicy[kind === 'fight' ? 'normal' : kind];
@@ -1022,7 +1061,7 @@ function applyEventEffects(state: GameState, run: DungeonRunState, effects: Even
       messages.push('found a small treasure');
     } else if (effect.type === 'consumable' && effect.consumableId) {
       const item = consumables.find((candidate) => candidate.id === effect.consumableId);
-      if (item && nextRun.consumables.length < dungeonRules.packSlots) {
+      if (item && nextRun.consumables.length < getHomeEffects(nextState.home).packSlots) {
         nextRun = { ...nextRun, consumables: [...nextRun.consumables, item.id] };
         messages.push(`${item.name} added to the pack`);
       } else if (item) {
@@ -1106,7 +1145,7 @@ function buyConsumable(state: GameState, consumableId: string): ActionResult {
   const run = state.dungeon.activeRun;
   const item = consumables.find((candidate) => candidate.id === consumableId);
   if (!run || run.phase !== 'shop' || !item || !run.shopOfferIds.includes(consumableId)) return { state, accepted: false, message: 'That item is not on this shop shelf.' };
-  if (run.consumables.length >= dungeonRules.packSlots) return { state, accepted: false, message: 'The pack is full. Use an item before buying another.' };
+  if (run.consumables.length >= getHomeEffects(state.home).packSlots) return { state, accepted: false, message: 'The pack is full. Use an item before buying another.' };
   if (run.coins < item.price) return { state, accepted: false, message: `Need ${item.price} run coins for ${item.name}.` };
   const nextRun = pushLog({
     ...run,
@@ -1121,7 +1160,7 @@ function buyEquipment(state: GameState, offerId: string): ActionResult {
   const run = state.dungeon.activeRun;
   const offer = run?.shopEquipmentOffers.find((candidate) => candidate.id === offerId);
   if (!run || run.phase !== 'shop' || !offer) return { state, accepted: false, message: 'That gear is not on this shop shelf.' };
-  if (state.equipment.inventory.length + run.pendingItems.length >= equipmentRules.inventory.capacity
+  if (state.equipment.inventory.length + run.pendingItems.length >= getHomeEffects(state.home).inventoryCapacity
     || run.pendingItems.length >= equipmentRules.inventory.pendingItemsPerRunCap) {
     return { state, accepted: false, message: 'Your bag is full. Finish the run or leave some gear behind before buying more.' };
   }
@@ -1145,7 +1184,7 @@ function resolvePendingItem(state: GameState, choice: 'take' | 'scrap' | 'leave'
   if (!run || run.phase !== 'loot' || !item) return { state, accepted: false, message: 'There is no gear drop waiting.' };
   let nextRun: DungeonRunState = { ...run, pendingItem: null, phase: 'choice' };
   let message: string;
-  if (choice === 'take' && state.equipment.inventory.length + run.pendingItems.length < equipmentRules.inventory.capacity
+  if (choice === 'take' && state.equipment.inventory.length + run.pendingItems.length < getHomeEffects(state.home).inventoryCapacity
     && run.pendingItems.length < equipmentRules.inventory.pendingItemsPerRunCap) {
     nextRun = { ...nextRun, pendingItems: [...run.pendingItems, item] };
     message = `${equipmentItemName(item)} added to the run bag.`;
@@ -1222,7 +1261,8 @@ function descend(state: GameState): ActionResult {
     petDeepestFloor: nextRun.generation === state.generation ? Math.max(state.dungeon.petDeepestFloor, floor) : state.dungeon.petDeepestFloor,
     activeRun: { ...nextRun, rngSeed: rng.seed },
   };
-  return { state: { ...state, dungeon }, accepted: true, message: `Pip reaches floor ${floor} in ${biome.name}.` };
+  const records = { ...state.records, bestRunFloor: Math.max(state.records.bestRunFloor, floor) };
+  return { state: { ...state, dungeon, records }, accepted: true, message: `Pip reaches floor ${floor} in ${biome.name}.` };
 }
 
 function leave(state: GameState): ActionResult {

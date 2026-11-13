@@ -140,6 +140,10 @@ describe('Phase 4 dungeon core', () => {
     expect(first.dungeon.runsCompleted).toBe(1);
     expect(first.dungeon.activeRun?.phase).toBe('summary');
     expect(first.dungeon.activeRun?.result).toBe('left');
+    expect(first.records.runsLeftSafely).toBe(1);
+    expect(first.records.bestRunFloor).toBe(1);
+    expect(first.records.totalCoinsBanked).toBe(first.dungeon.activeRun?.bankedCoins);
+    expect(first.records.totalRoomsCleared).toBeGreaterThan(0);
   });
 
   it('activates a boss phase-two ability when the health threshold is crossed', () => {
@@ -159,6 +163,32 @@ describe('Phase 4 dungeon core', () => {
     for (let tick = 0; tick < 2; tick += 1) state = advance(state, 100);
     expect(state.dungeon.activeRun?.enemy?.phaseTwoTriggered).toBe(true);
     expect(state.dungeon.activeRun?.combatLog.some((line) => line.includes('new move'))).toBe(true);
+  });
+
+  it('records a first-biome boss win and automatically awards boss milestones', () => {
+    let state = startRun(521);
+    let run = state.dungeon.activeRun!;
+    run = {
+      ...run,
+      floor: 10,
+      roomChoices: ['boss'],
+      petStats: { HP: 1_000, ATK: 1_000, DEF: 1_000, SPD: 1_000, LUK: 20 },
+      petMaxHp: 1_000,
+      petHp: 1_000,
+    };
+    state = withRun(state, run);
+    state = applyAction(state, { type: 'dungeon-choose-room', roomType: 'boss' }).state;
+    state = applyAction(state, { type: 'dungeon-choose-tactic', tacticId: 'all-in' }).state;
+    run = state.dungeon.activeRun!;
+    state = withRun(state, { ...run, petGauge: 100, enemy: { ...run.enemy!, hp: 1 } });
+    state = advance(state, 100);
+
+    expect(state.records.bossesDefeated).toBe(1);
+    expect(state.home.bossFirstBiomes).toContain('cinder-copse');
+    expect(state.home.bossClearedFloors).toContain(10);
+    expect(state.home.unlockedAchievementIds).toContain('first-boss');
+    expect(state.home.unlockedAchievementIds).toContain('depth-ten');
+    expect(state.dungeon.essence).toBeGreaterThanOrEqual(35);
   });
 
   it('stores event boons and curses as run-only modifiers', () => {
@@ -234,12 +264,13 @@ describe('Phase 4 dungeon core', () => {
     expect(summary.lostLootCount).toBe(2);
     expect(summary.consumables).toEqual([]);
     expect(faintState.needs.energy).toBe(0);
+    expect(faintState.records.runsFainted).toBe(1);
   });
 
-  it('bounds persisted dungeon state and keeps valid run snapshots on schema-v4 load', () => {
+  it('bounds persisted dungeon state and keeps valid run snapshots on schema-v5 load', () => {
     const active = startRun(57, ['peppy-potion']);
     const restored = migrateSave(JSON.parse(JSON.stringify(active)) as unknown);
-    expect(restored.schemaVersion).toBe(4);
+    expect(restored.schemaVersion).toBe(5);
     expect(restored.paused).toBe(true);
     expect(restored.dungeon.activeRun?.consumables).toEqual(['peppy-potion']);
     expect(restored.dungeon.activeRun?.petFormId).toBe(formId);

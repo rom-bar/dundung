@@ -1045,3 +1045,86 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* Phase 6: Home, achievements and long-term records */
+.home-dialog {
+  width: min(calc(100vw - 20px), 900px);
+  max-height: calc(100vh - 20px);
+  max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
+  padding: clamp(14px, 3vw, 26px);
+  border-color: rgba(241, 201, 107, .42);
+  scrollbar-color: var(--honey) transparent;
+}
+.home-heading { margin-bottom: 14px; }
+.home-heading h2 { max-width: 640px; }
+.home-wallet { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 14px 0; }
+.home-wallet span { display: grid; gap: 5px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); background: #242035; }
+.home-wallet small { color: var(--ink-muted); font-size: 9px; }
+.home-wallet strong { color: var(--honey); font-family: 'Press Start 2P', monospace; font-size: 11px; overflow-wrap: anywhere; }
+.home-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.home-tab { min-height: 46px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-muted); font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.home-tab[aria-selected="true"] { border-bottom-color: var(--honey); color: var(--honey); }
+.home-content { min-height: 180px; padding-top: 15px; }
+.home-intro { margin-bottom: 13px; padding: 12px 14px; border-left: 3px solid var(--honey); background: rgba(18, 15, 29, .58); }
+.home-intro h3, .home-meal h3, .home-keepsakes h3 { margin: 0; font-size: 14px; line-height: 1.5; }
+.home-intro p:not(.eyebrow) { margin: 6px 0 0; color: var(--ink-muted); font-size: 10px; line-height: 1.55; }
+.home-upgrade-grid, .achievement-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.home-upgrade-card, .home-achievement { min-width: 0; padding: 12px; border: 1px solid var(--line); background: #242035; }
+.home-upgrade-top, .achievement-top { display: flex; align-items: flex-start; gap: 9px; }
+.home-upgrade-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border: 1px solid rgba(241, 201, 107, .4); color: var(--honey); font-size: 17px; }
+.home-upgrade-card h3, .home-achievement h3 { margin: 0; font-size: 12px; line-height: 1.5; }
+.home-level { display: block; margin-top: 3px; color: var(--honey); font-size: 9px; }
+.home-upgrade-card > p { margin: 10px 0 0; color: var(--ink-muted); font-size: 10px; line-height: 1.55; }
+.home-effect-line { min-height: 36px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--mint) !important; }
+.home-action { min-height: 44px; width: 100%; margin-top: 9px; padding: 8px 10px; border: 1px solid rgba(241, 201, 107, .6); background: rgba(241, 201, 107, .1); color: var(--honey); font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+.home-action:hover:not(:disabled) { background: rgba(241, 201, 107, .18); }
+.home-action:disabled { opacity: .46; cursor: not-allowed; }
+.home-meal { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, .65fr) auto; align-items: end; gap: 12px; margin-top: 12px; padding: 13px; border: 1px dashed rgba(171, 223, 180, .42); background: rgba(171, 223, 180, .05); }
+.home-meal > div > p:not(.eyebrow) { margin: 5px 0 0; color: var(--ink-muted); font-size: 10px; line-height: 1.5; }
+.home-meal .home-action { width: auto; min-width: 145px; margin: 0; }
+.home-field { display: grid; gap: 6px; color: var(--ink-muted); font-size: 9px; }
+.home-field select { min-height: 42px; max-width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 0; background: #1b172b; color: var(--paper); font: inherit; font-size: 10px; }
+.meal-ready { grid-column: 2 / -1; margin: 0; color: var(--mint); font-size: 11px; line-height: 1.5; }
+.home-lock-note { grid-column: 1 / -1; color: var(--honey); font-size: 9px; }
+.home-achievement { border-left: 3px solid var(--rock-light); }
+.home-achievement.is-unlocked { border-left-color: var(--mint); }
+.home-achievement p { margin: 5px 0 0; color: var(--ink-muted); font-size: 9px; line-height: 1.5; }
+.achievement-top { justify-content: space-between; }
+.achievement-state { flex: 0 0 auto; padding: 4px 6px; border: 1px solid var(--line); color: var(--ink-muted); font-size: 8px; }
+.is-unlocked .achievement-state { border-color: rgba(171, 223, 180, .5); color: var(--mint); }
+.achievement-progress { display: grid; gap: 5px; margin-top: 12px; color: var(--ink-muted); font-size: 8px; }
+.achievement-progress > div { height: 7px; overflow: hidden; border: 1px solid var(--line); background: #151220; }
+.achievement-progress > div > span { display: block; height: 100%; background: var(--mint); }
+.achievement-reward { display: block; margin-top: 9px; color: var(--honey); font-size: 8px; line-height: 1.5; }
+.home-keepsakes { margin-top: 14px; padding: 12px; border-top: 1px solid var(--line); }
+.home-keepsakes h3 { margin-bottom: 9px; color: var(--mint); }
+.keepsake-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.keepsake-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 9px; border: 1px solid rgba(241, 201, 107, .4); color: var(--honey); font-size: 9px; }
+.home-empty { margin: 0; color: var(--ink-muted); font-size: 9px; }
+.record-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.record-card { display: grid; gap: 8px; min-width: 0; padding: 11px; border: 1px solid var(--line); background: #242035; }
+.record-card small { color: var(--ink-muted); font-size: 9px; line-height: 1.4; }
+.record-card strong { color: var(--mint); font-family: 'Press Start 2P', monospace; font-size: 12px; overflow-wrap: anywhere; }
+.library-hint { margin: 8px 0 12px; padding: 9px 11px; border-left: 2px solid var(--honey); background: rgba(241, 201, 107, .06); color: var(--honey); font-size: 9px; line-height: 1.55; }
+.library-hint[hidden] { display: none; }
+
+@media (max-width: 580px) {
+  #home-open span:not(.button-icon) { display: none; }
+  .home-dialog { width: calc(100vw - 12px); max-height: calc(100dvh - 8px); padding: 12px; border-radius: 6px; }
+  .home-heading { gap: 7px; margin-bottom: 10px; }
+  .home-heading h2 { max-width: 220px; font-size: 10px; }
+  .home-heading .eyebrow { font-size: 9px; }
+  .home-wallet { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 9px 0; }
+  .home-wallet span { padding: 7px 8px; }
+  .home-wallet strong { font-size: 9px; }
+  .home-tab { min-height: 44px; font-size: 10px; }
+  .home-content { padding-top: 10px; }
+  .home-upgrade-grid, .achievement-grid { grid-template-columns: minmax(0, 1fr); }
+  .home-meal { grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 9px; padding: 10px; }
+  .home-meal .home-action { width: 100%; }
+  .meal-ready, .home-lock-note { grid-column: 1; }
+  .record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .record-card { padding: 9px; }
+  .record-card strong { font-size: 10px; }
+}

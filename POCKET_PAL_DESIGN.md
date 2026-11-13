@@ -263,20 +263,26 @@ tests/           vitest unit tests for core
 **Goal:** every run matters, even failed ones.
 
 ### Home upgrades (`home.json`)
-- Cost: `50 x 1.6^level`.
-  - **Kitchen:** better food buffs and more pack slots.
-  - **Gym:** raises training caps and mini-game rewards.
-  - **Workshop:** cheaper upgrades/fusion, more inventory.
-  - **Nursery:** better legacy inheritance (more traits/stat carry-over).
-  - **Library:** Dex bonuses, reveals evolution weights hints.
-- **Meals and run buffs:** each meal gives a one-run buff (+10% to a stat, scaled by Kitchen).
-- **Goals and achievements:** Form Dex completion, depth records, boss firsts, set collection. Rewards: coins, cosmetics, Essence.
+- Five upgrades, each capped at level 5. Cost is `floor(50 x 1.6^currentLevel)` coins; all balance values live in `home.json`.
+  - **Kitchen:** food effects +5% per level (max +25%); pack grows from 3 to 4 at level 2 and 5 at level 4. A free prepared meal boosts one selected stat by +10% at level 0, then +2 percentage points per Kitchen level, up to +20%. It is consumed only after a valid run starts.
+  - **Gym:** raises the `2 x pet level` training cap by 15% per level and increases mini-game training rewards by 10% per level.
+  - **Workshop:** reduces equipment upgrade Scrap costs by 8% per level and fusion Scrap costs by 10% per level (each discount bottoms out at 50%); adds 5 permanent inventory spaces per level. The baseline fusion fee is 30 Scrap.
+  - **Nursery:** adds +1 percentage point to each generation's legacy stat bonus per level (up to 25%); level 3 passes down one additional distinct trait.
+  - **Library:** adds +0.05% to stats per discovered form per Library level. Level 1 reveals a general evolution clue; level 3 reveals the top three current form-weight shares, without naming undiscovered forms.
+- **Goals and achievements:** six one-time milestones cover five/all Form Dex entries, floor 5, a first boss in a new biome, an equipped two-piece set, and clearing the floor-10 boss. Rewards are data-driven coins, Essence, and cosmetic keepsakes.
+- **Records:** lifetime rooms cleared, bosses defeated, safe returns, faints, best floor in one run, total coins banked, plus current/global depth, forms, generation, equipped sets, and unlocked keepsakes.
+- **Persistence:** schema v5 adds Home levels, a prepared meal, achievements/cosmetics, boss-first flags, and lifetime records; older saves migrate with bounded defaults.
 
 ### Deliverables
 - Home screen with upgrade tree, achievements screen, stats/records page.
 
 ### Tests
-- Upgrade cost scaling, buff application, achievement triggers.
+- Upgrade cost scaling, Kitchen pack/meal rules, Gym caps, Workshop discounts/capacity, Nursery inheritance, Library weight hints, one-time reward/idempotency, v4-to-v5 migration, and dungeon record settlement.
+
+### Implementation defaults
+- Home upgrades use banked coins and cannot be changed during a dungeon run. A meal is free and only one may be prepared at a time; failed run validation does not consume it.
+- Achievements award their listed rewards automatically once, when an accepted game transition reaches the goal. Cosmetics are keepsakes in the Home screen and do not alter balance.
+- Evolution weight hints use the same seeded weight formula as the next evolution roll; they are informational and never change the roll.
 
 ---
 

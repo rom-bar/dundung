@@ -136,7 +136,7 @@ describe('save migration and seeded randomness', () => {
 
   it('migrates a schema-less save and repairs invalid need values', () => {
     const restored = migrateSave({ stage: 'baby', needs: { hunger: 200, happiness: 'lots' } });
-    expect(restored.schemaVersion).toBe(4);
+    expect(restored.schemaVersion).toBe(5);
     expect(restored.stage).toBe('baby');
     expect(restored.needs.hunger).toBe(100);
     expect(restored.needs.happiness).toBe(86);
@@ -155,7 +155,7 @@ describe('save migration and seeded randomness', () => {
       tendencies: { play: 0.75 },
       hallOfPets: [{ generation: 2, name: '<img src=x onerror=alert(1)>', formId: 'fire-emberguard', peakLevel: 999 }],
     });
-    expect(restored.schemaVersion).toBe(4);
+    expect(restored.schemaVersion).toBe(5);
     expect(restored.generationSeconds).toBe(123);
     expect(restored.stageSeconds).toBe(rules.lifeStages.stageMinutes.baby * 60);
     expect(restored.cooldowns.feed).toBe(rules.actionCooldownSeconds.feed);
@@ -166,6 +166,30 @@ describe('save migration and seeded randomness', () => {
     expect(restored.hallOfPets[0]?.peakLevel).toBe(40);
     expect(restored.hallOfPets[0]?.deepestFloor).toBe(0);
     expect(restored.dungeon).toMatchObject({ coins: 0, deepestFloor: 0, petDeepestFloor: 0, runsCompleted: 0, activeRun: null });
+  });
+
+  it('migrates v4 saves to bounded Home progression and lifetime records', () => {
+    const restored = migrateSave({
+      schemaVersion: 4,
+      home: {
+        upgradeLevels: { kitchen: 99, gym: -1, workshop: 2, nursery: 0, library: 'many' },
+        preparedMeal: { stat: 'HP', bonus: 4 },
+        unlockedAchievementIds: ['unknown-reward', 'first-five-forms'],
+        unlockedCosmeticIds: ['unknown-cosmetic'],
+        bossFirstBiomes: ['unknown-biome', 'cinder-copse', 'cinder-copse'],
+        bossClearedFloors: [10, 10, -2],
+      },
+      records: { totalCoinsBanked: -1, bestRunFloor: 'not-a-number' },
+    });
+    expect(restored.schemaVersion).toBe(5);
+    expect(restored.home.upgradeLevels).toEqual({ kitchen: 5, gym: 0, workshop: 2, nursery: 0, library: 0 });
+    expect(restored.home.preparedMeal).toEqual({ stat: 'HP', bonus: 0.2 });
+    expect(restored.home.unlockedAchievementIds).toEqual(['first-five-forms']);
+    expect(restored.home.unlockedCosmeticIds).toEqual([]);
+    expect(restored.home.bossFirstBiomes).toEqual(['cinder-copse']);
+    expect(restored.home.bossClearedFloors).toEqual([10]);
+    expect(restored.records.totalCoinsBanked).toBe(0);
+    expect(restored.records.bestRunFloor).toBe(0);
   });
 
   it('refuses to open a save from a future schema version', () => {

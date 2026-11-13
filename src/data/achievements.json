@@ -1,0 +1,44 @@
+[
+  {
+    "id": "first-five-forms",
+    "title": "Little Field Guide",
+    "description": "Discover five different forms in the Form Dex.",
+    "progress": { "type": "forms", "target": 5 },
+    "rewards": { "coins": 40, "essence": 0, "cosmetics": [] }
+  },
+  {
+    "id": "depth-five",
+    "title": "Down the First Steps",
+    "description": "Reach floor 5 in any dungeon run.",
+    "progress": { "type": "depth", "target": 5 },
+    "rewards": { "coins": 60, "essence": 0, "cosmetics": [] }
+  },
+  {
+    "id": "first-boss",
+    "title": "A Brave First",
+    "description": "Defeat a boss in a new biome for the first time.",
+    "progress": { "type": "boss-firsts", "target": 1 },
+    "rewards": { "coins": 40, "essence": 15, "cosmetics": ["moss-lantern"] }
+  },
+  {
+    "id": "two-piece-set",
+    "title": "A Matching Little Set",
+    "description": "Equip two pieces from the same gear set.",
+    "progress": { "type": "set-pieces", "target": 2 },
+    "rewards": { "coins": 30, "essence": 0, "cosmetics": ["ginger-pin"] }
+  },
+  {
+    "id": "depth-ten",
+    "title": "A Long Way Down",
+    "description": "Reach floor 10 and clear its boss room.",
+    "progress": { "type": "boss-floor", "target": 10 },
+    "rewards": { "coins": 100, "essence": 20, "cosmetics": [] }
+  },
+  {
+    "id": "form-dex-complete",
+    "title": "A Whole Pocket Family",
+    "description": "Discover every known form.",
+    "progress": { "type": "forms", "target": 20 },
+    "rewards": { "coins": 150, "essence": 30, "cosmetics": ["starwing-aura"] }
+  }
+]

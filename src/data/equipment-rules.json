@@ -29,7 +29,7 @@
   "inventory": { "capacity": 20, "pendingItemsPerRunCap": 20, "fullBagOverflow": "auto-scrap-incoming-item-only-with-message", "overflowNeverScrapsExistingItems": true, "autoScrapDefault": "off" },
   "scrap": { "yieldByRarity": { "Common": 2, "Uncommon": 5, "Rare": 12, "Epic": 30, "Legendary": 75 }, "upgradeCostFormula": "ceil(10 * 1.5^n)", "upgradeCostExponentBase": 1.5, "upgradeCostBase": 10 },
   "upgrades": { "maximumLevel": 10, "startingLevel": 0, "successChanceByTargetLevel": { "1": 1, "2": 1, "3": 1, "4": 1, "5": 1, "6": 0.85, "7": 0.75, "8": 0.65, "9": 0.55, "10": 0.45 }, "guaranteedThroughLevel": 5, "statBonusPerLevel": 0.08, "failureResult": "downgrade-one-level", "minimumLevel": 0, "failureNeverDestroys": true },
-  "fusion": { "inputCount": 3, "requiresSameSlot": true, "requiresSameRarity": true, "rarityOrder": ["Common", "Uncommon", "Rare", "Epic", "Legendary"], "outputRarity": "next-rarity", "keepsOneChosenAffix": true, "outputLevel": 0 },
+  "fusion": { "inputCount": 3, "requiresSameSlot": true, "requiresSameRarity": true, "rarityOrder": ["Common", "Uncommon", "Rare", "Epic", "Legendary"], "outputRarity": "next-rarity", "keepsOneChosenAffix": true, "outputLevel": 0, "scrapCostBase": 30 },
   "shop": { "offerCount": 3, "itemPriceFactorsByRarity": { "Common": 1, "Uncommon": 1.8, "Rare": 3.5, "Epic": 7, "Legendary": 15 }, "priceFormula": "round(basePrice * rarityPriceFactor * (1 + 0.06 * ilvl))", "refreshCost": 25 },
   "currencies": { "bossEssenceYield": { "min": 8, "max": 12 }, "essencePerEvolutionStone": 30 },
   "legendaryEffects": [

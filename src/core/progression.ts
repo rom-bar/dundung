@@ -2,6 +2,7 @@ import evolutions from '../data/evolutions.json';
 import rules from '../data/rules.json';
 import traitsJson from '../data/traits.json';
 import { applyEquipmentToStats } from './equipment';
+import { getHomeEffects, getTrainingCap } from './home';
 import { nextRandom } from './rng';
 import type {
   Archetype,
@@ -47,6 +48,15 @@ interface TraitDefinition {
 }
 const traits = traitsJson as TraitDefinition[];
 
+export interface EvolutionWeightHint {
+  formId: string;
+  rarity: Rarity;
+  element: Element;
+  archetype: Archetype;
+  weight: number;
+  sharePercent: number;
+}
+
 export const stageOrder: LifeStage[] = ['egg', 'baby', 'teen', 'adult', 'elder'];
 
 export function emptyStats(): Stats {
@@ -61,7 +71,7 @@ export function emptyElementMeals(): Record<Element, number> {
   return { fire: 0, water: 0, moss: 0, storm: 0, shadow: 0 };
 }
 
-export function emptyEvolution(inheritedTraitId: string | null = null, baseStatBonus = 0): EvolutionProgress {
+export function emptyEvolution(inheritedTraitId: string | null = null, baseStatBonus = 0, inheritedTraitIds: string[] = []): EvolutionProgress {
   return {
     formId: null,
     traitIds: [],
@@ -71,6 +81,7 @@ export function emptyEvolution(inheritedTraitId: string | null = null, baseStatB
     evolutionStones: 0,
     elementMeals: emptyElementMeals(),
     inheritedTraitId,
+    inheritedTraitIds: inheritedTraitIds.length ? [...inheritedTraitIds] : inheritedTraitId ? [inheritedTraitId] : [],
     baseStatBonus,
   };
 }
@@ -93,6 +104,7 @@ export function getTraitList(state: GameState): TraitDefinition[] {
     state.evolution.mutationTraitId,
     state.evolution.drawbackTraitId,
     state.evolution.inheritedTraitId,
+    ...state.evolution.inheritedTraitIds,
   ].filter((id): id is string => Boolean(id));
   return [...new Set(ids)].map((id) => getTraitDefinition(id)).filter((trait): trait is TraitDefinition => trait !== null);
 }
@@ -156,7 +168,7 @@ export function pointsForMiniGameScore(score: number): number {
 }
 
 export function awardTraining(state: GameState, stat: StatKey, points: number): { state: GameState; awarded: number } {
-  const cap = Math.floor(rules.progression.trainingCapPerLevel * state.level);
+  const cap = getTrainingCap(state.level, state.home.upgradeLevels.gym);
   const current = state.training[stat];
   const awarded = Math.max(0, Math.min(cap - current, Math.floor(points)));
   return {
@@ -174,6 +186,7 @@ export function getEffectiveStats(state: GameState): Stats {
     ? Math.max(rules.lifeStages.elderStatFloorMultiplier, 1 - (state.stageSeconds / 60) * (rules.lifeStages.elderStatDeclinePercentPerMinute / 100))
     : 1;
   const result = emptyStats();
+  const dexBonus = getHomeEffects(state.home, state.formDex.length).dexStatMultiplier;
   statKeys.forEach((stat) => {
     let value = (baseStats[stat] * (1 + state.evolution.baseStatBonus) + growthPerLevel[stat] * state.level + state.training[stat])
       * element[stat]
@@ -182,7 +195,7 @@ export function getEffectiveStats(state: GameState): Stats {
       value += trait.statBonus?.[stat] ?? 0;
       value *= trait.statMultiplier?.[stat] ?? 1;
     });
-    result[stat] = Math.max(1, Math.floor(value * elderDecline));
+    result[stat] = Math.max(1, Math.floor(value * elderDecline * dexBonus));
   });
   return applyEquipmentToStats(result, state.equipment);
 }
@@ -201,16 +214,9 @@ export function recordFoodElement(state: GameState, tags: string[]): GameState {
   return { ...state, evolution: { ...state.evolution, elementMeals: { ...state.evolution.elementMeals, [key]: state.evolution.elementMeals[key] + 1 } } };
 }
 
-function rollEvolution(state: GameState, excludedFormId: string | null = null): GameState {
-  let seed = state.seed >>> 0;
-  const random = () => {
-    const step = nextRandom(seed);
-    seed = step.seed;
-    return step.value;
-  };
+function getEvolutionWeights(state: GameState, excludedFormId: string | null): Array<{ form: FormDefinition; weight: number }> {
   const totalMeals = elementKeys.reduce((sum, element) => sum + state.evolution.elementMeals[element], 0);
-  const eligibleForms = forms.filter((form) => form.id !== excludedFormId);
-  const weights = eligibleForms.map((form) => {
+  return forms.filter((form) => form.id !== excludedFormId).map((form) => {
     const affinities = archetypeAffinities[form.archetype];
     const tendencyBoost = Object.entries(affinities).reduce((sum, [key, affinity]) => {
       return sum + state.tendencies[key as TendencyKey] * (affinity ?? 0);
@@ -220,15 +226,41 @@ function rollEvolution(state: GameState, excludedFormId: string | null = null): 
     const pityWeight = form.rarity === 'rare'
       ? evolutions.rarePityBonusPerMiss * state.evolution.rareMisses
       : 0;
-    return (rarityWeights[form.rarity] + pityWeight) * (1 + tendencyBoost) * elementBoost;
+    return { form, weight: (rarityWeights[form.rarity] + pityWeight) * (1 + tendencyBoost) * elementBoost };
   });
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+}
+
+export function getEvolutionWeightHints(state: GameState, limit = 3): EvolutionWeightHint[] {
+  const candidates = getEvolutionWeights(state, null);
+  const totalWeight = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
+  return [...candidates]
+    .sort((left, right) => right.weight - left.weight)
+    .slice(0, Math.max(0, Math.floor(limit)))
+    .map(({ form, weight }) => ({
+      formId: form.id,
+      rarity: form.rarity,
+      element: form.element,
+      archetype: form.archetype,
+      weight,
+      sharePercent: totalWeight > 0 ? weight / totalWeight * 100 : 0,
+    }));
+}
+
+function rollEvolution(state: GameState, excludedFormId: string | null = null): GameState {
+  let seed = state.seed >>> 0;
+  const random = () => {
+    const step = nextRandom(seed);
+    seed = step.seed;
+    return step.value;
+  };
+  const candidates = getEvolutionWeights(state, excludedFormId);
+  const totalWeight = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
   let target = random() * totalWeight;
-  let form = eligibleForms[eligibleForms.length - 1]!;
-  for (let index = 0; index < eligibleForms.length; index += 1) {
-    target -= weights[index]!;
+  let form = candidates[candidates.length - 1]!.form;
+  for (let index = 0; index < candidates.length; index += 1) {
+    target -= candidates[index]!.weight;
     if (target <= 0) {
-      form = forms[index]!;
+      form = candidates[index]!.form;
       break;
     }
   }
@@ -306,12 +338,19 @@ export function completeGeneration(state: GameState): GameState {
     ...state.evolution.traitIds,
     state.evolution.mutationTraitId,
     state.evolution.inheritedTraitId,
+    ...state.evolution.inheritedTraitIds,
   ].filter((id): id is string => Boolean(id));
-  const traitRoll = nextRandom(state.seed);
-  const selectedTrait = candidateIds.length
-    ? candidateIds[Math.floor(traitRoll.value * candidateIds.length)]!
-    : null;
-  const randomSeed = nextRandom(traitRoll.seed).seed;
+  let seed = state.seed;
+  const traitPool = [...new Set(candidateIds)];
+  const inheritanceCount = Math.min(traitPool.length, 1 + getHomeEffects(state.home).extraInheritedTraits);
+  const selectedTraits: string[] = [];
+  while (selectedTraits.length < inheritanceCount) {
+    const roll = nextRandom(seed);
+    seed = roll.seed;
+    const index = Math.floor(roll.value * traitPool.length);
+    selectedTraits.push(traitPool.splice(index, 1)[0]!);
+  }
+  const randomSeed = nextRandom(seed).seed;
   const record: PetRecord = {
     generation: state.generation,
     name: getFormDefinition(state.evolution.formId)?.name ?? 'Pip',
@@ -320,8 +359,14 @@ export function completeGeneration(state: GameState): GameState {
     activeSeconds: state.generationSeconds,
     deepestFloor: state.dungeon.petDeepestFloor,
     inheritedTraitId: state.evolution.inheritedTraitId,
+    inheritedTraitIds: [...state.evolution.inheritedTraitIds],
   };
-  const nextEvolution = emptyEvolution(selectedTrait, state.evolution.baseStatBonus + rules.progression.legacyBaseStatBonus);
+  const nurseryBonus = getHomeEffects(state.home).legacyStatBonusPerGeneration;
+  const nextEvolution = emptyEvolution(
+    selectedTraits[0] ?? null,
+    Math.min(0.25, state.evolution.baseStatBonus + rules.progression.legacyBaseStatBonus + nurseryBonus),
+    selectedTraits,
+  );
   nextEvolution.evolutionStones = state.evolution.evolutionStones;
   nextEvolution.rareMisses = state.evolution.rareMisses;
   return {

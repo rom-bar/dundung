@@ -49,6 +49,7 @@ export interface PetRecord {
   activeSeconds: number;
   deepestFloor: number;
   inheritedTraitId: string | null;
+  inheritedTraitIds?: string[];
 }
 
 export interface EquipmentItem {
@@ -103,6 +104,7 @@ export interface EvolutionProgress {
   evolutionStones: number;
   elementMeals: Record<Element, number>;
   inheritedTraitId: string | null;
+  inheritedTraitIds: string[];
   baseStatBonus: number;
 }
 
@@ -193,12 +195,37 @@ export interface DungeonProgress {
   activeRun: DungeonRunState | null;
 }
 
+export type HomeUpgradeId = 'kitchen' | 'gym' | 'workshop' | 'nursery' | 'library';
+
+export interface PreparedMeal {
+  stat: StatKey;
+  bonus: number;
+}
+
+export interface HomeProgress {
+  upgradeLevels: Record<HomeUpgradeId, number>;
+  preparedMeal: PreparedMeal | null;
+  unlockedAchievementIds: string[];
+  unlockedCosmeticIds: string[];
+  bossFirstBiomes: string[];
+  bossClearedFloors: number[];
+}
+
+export interface GameRecords {
+  totalRoomsCleared: number;
+  bossesDefeated: number;
+  runsLeftSafely: number;
+  runsFainted: number;
+  bestRunFloor: number;
+  totalCoinsBanked: number;
+}
+
 export type Animation = 'idle' | 'eat' | 'play' | 'clean' | 'sleep' | 'wake' | 'evolve';
 export type CooldownKey = 'feed' | 'play' | 'clean' | 'sleep';
 export type ActionLabel = CooldownKey | 'train';
 
 export interface GameState {
-  schemaVersion: 4;
+  schemaVersion: 5;
   seed: number;
   stage: LifeStage;
   stageSeconds: number;
@@ -221,6 +248,8 @@ export interface GameState {
   hallOfPets: PetRecord[];
   dungeon: DungeonProgress;
   equipment: EquipmentState;
+  home: HomeProgress;
+  records: GameRecords;
   miniGameCooldownSeconds: number;
   peakLevel: number;
 }
@@ -243,6 +272,8 @@ export type GameAction =
   | { type: 'toggle-sleep' }
   | { type: 'mini-game-complete'; stat: StatKey; score: number }
   | { type: 'use-evolution-stone' }
+  | { type: 'home-upgrade'; upgradeId: HomeUpgradeId }
+  | { type: 'home-cook-meal'; stat: StatKey }
   | { type: 'dungeon-start-run'; consumables: string[] }
   | { type: 'dungeon-choose-room'; roomType: DungeonRoomType }
   | { type: 'dungeon-choose-tactic'; tacticId: string }

@@ -1,15 +1,16 @@
 import rules from './data/rules.json';
 import foods from './data/foods.json';
 import { createInitialState, getMood, getNeedSignals } from './core/game';
-import type { GameAction, GameState, NeedKey, StatKey, WorkerOutMessage } from './core/types';
+import type { GameAction, GameState, HomeUpgradeId, NeedKey, StatKey, WorkerOutMessage } from './core/types';
 import { drawPetScene } from './render/sprite';
 import { playSound, type SoundKind } from './platform/audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
 import { attachTouchControls } from './platform/touch-controls';
 import { createMiniMode } from './platform/mini-mode';
-import { getAllForms, getEffectiveStats, getFormDefinition, getLevelCap, getTraitList, xpToNextLevel } from './core/progression';
+import { getAllForms, getEffectiveStats, getEvolutionWeightHints, getFormDefinition, getLevelCap, getTraitList, xpToNextLevel } from './core/progression';
 import { getBiomeForFloor, getDungeonData } from './core/dungeon';
+import { getAchievementStatuses, getCosmeticName, getHomeEffects, getHomeUpgradeCost, getHomeUpgradeDefinitions, getTrainingCap } from './core/home';
 import {
   equipmentItemsHaveSameSlotAndRarity,
   getAffixDefinition,
@@ -79,6 +80,8 @@ let installButton: HTMLButtonElement | null = null;
 let selectedDungeonPack: string[] = [];
 let selectedGearTab: 'loadout' | 'bag' | 'workshop' = 'loadout';
 let selectedFuseIds: string[] = [];
+let selectedHomeTab: 'upgrades' | 'achievements' | 'records' = 'upgrades';
+let selectedMealStat: StatKey = 'ATK';
 
 root.innerHTML = `
   <div class="app-shell">
@@ -93,6 +96,9 @@ root.innerHTML = `
         </button>
         <button class="quiet-button" id="dungeon-open" type="button" aria-label="Dungeon" aria-haspopup="dialog" aria-controls="dungeon-dialog" data-testid="dungeon-open" disabled>
           <span class="button-icon" aria-hidden="true">⌁</span><span>Dungeon</span>
+        </button>
+        <button class="quiet-button" id="home-open" type="button" aria-label="Home upgrades and records" aria-haspopup="dialog" aria-controls="home-dialog" data-testid="home-open">
+          <span class="button-icon" aria-hidden="true">⌂</span><span>Home</span>
         </button>
         <button class="quiet-button" id="gear-open" type="button" aria-label="Gear and workshop" aria-haspopup="dialog" aria-controls="gear-dialog" data-testid="gear-open">
           <span class="button-icon" aria-hidden="true">◇</span><span>Gear</span>
@@ -243,6 +249,7 @@ root.innerHTML = `
         <button class="dialog-close" id="dex-close" type="button" aria-label="Close Form Dex">×</button>
       </div>
       <p class="settings-intro" id="dex-progress">0 of 20 forms found · scroll to explore</p>
+      <p class="library-hint" id="library-hint"></p>
       <button class="quiet-button stone-button" id="evolution-stone" type="button" hidden>Use Evolution Stone</button>
       <div class="form-grid" id="form-grid" role="region" tabindex="0" aria-label="Form collection; scroll to browse all forms"></div>
       <section class="hall-section" aria-labelledby="hall-title"><h3 id="hall-title">Hall of Pets</h3><div id="hall-list"></div></section>
@@ -259,6 +266,19 @@ root.innerHTML = `
         <button class="gear-tab" type="button" role="tab" data-gear-tab="workshop" aria-selected="false">Workshop</button>
       </div>
       <div class="gear-content" id="gear-content" aria-live="polite"></div>
+    </dialog>
+    <dialog class="settings-dialog home-dialog" id="home-dialog" aria-labelledby="home-title">
+      <div class="settings-heading home-heading">
+        <div><p class="eyebrow">A little place to grow together</p><h2 id="home-title">Home & family</h2></div>
+        <button class="dialog-close" id="home-close" type="button" aria-label="Close Home">×</button>
+      </div>
+      <div class="home-wallet" id="home-wallet" aria-label="Home currencies"></div>
+      <div class="home-tabs" role="tablist" aria-label="Home sections">
+        <button class="home-tab" type="button" role="tab" data-home-tab="upgrades" aria-selected="true">Upgrades</button>
+        <button class="home-tab" type="button" role="tab" data-home-tab="achievements" aria-selected="false">Achievements</button>
+        <button class="home-tab" type="button" role="tab" data-home-tab="records" aria-selected="false">Records</button>
+      </div>
+      <div class="home-content" id="home-content" aria-live="polite"></div>
     </dialog>
     <dialog class="settings-dialog minigame-dialog" id="minigame-dialog" aria-labelledby="minigame-title">
       <div class="settings-heading">
@@ -303,6 +323,9 @@ const controlOpacityValue = must<HTMLOutputElement>('#control-opacity-value');
 const dexDialog = must<HTMLDialogElement>('#dex-dialog');
 const gearDialog = must<HTMLDialogElement>('#gear-dialog');
 const gearContent = must<HTMLDivElement>('#gear-content');
+const homeDialog = must<HTMLDialogElement>('#home-dialog');
+const homeContent = must<HTMLDivElement>('#home-content');
+const homeWallet = must<HTMLDivElement>('#home-wallet');
 const dungeonDialog = must<HTMLDialogElement>('#dungeon-dialog');
 const dungeonContent = must<HTMLDivElement>('#dungeon-content');
 const minigameDialog = must<HTMLDialogElement>('#minigame-dialog');
@@ -451,6 +474,23 @@ function renderFormDex(current: GameState): void {
   const forms = getAllForms();
   const discovered = new Set(current.formDex);
   must<HTMLParagraphElement>('#dex-progress').textContent = `${discovered.size} of ${forms.length} forms found · scroll to explore`;
+  const libraryEffects = getHomeEffects(current.home, current.formDex.length);
+  const libraryHint = must<HTMLParagraphElement>('#library-hint');
+  libraryHint.hidden = libraryEffects.weightHintLevel < 1;
+  if (libraryEffects.advancedWeightHintLevel > 0) {
+    const hints = getEvolutionWeightHints(current, 3).map((hint) => {
+      const form = getFormDefinition(hint.formId);
+      const label = discovered.has(hint.formId) && form
+        ? form.name
+        : `${hint.rarity} ${hint.element} ${hint.archetype}`;
+      return `${label} · ${hint.sharePercent.toFixed(1)}% weight share`;
+    });
+    libraryHint.textContent = `Advanced Library clue: current leading evolution weights — ${hints.join('; ')}. This is a live hint, not a promise. Form discoveries add +${((libraryEffects.dexStatMultiplier - 1) * 100).toFixed(1)}% to Pip's stats.`;
+  } else if (libraryEffects.weightHintLevel > 0) {
+    libraryHint.textContent = `Library clue: care tendencies and elemental meals nudge evolution toward matching forms. Discoveries add +${((libraryEffects.dexStatMultiplier - 1) * 100).toFixed(1)}% to Pip's stats.`;
+  } else {
+    libraryHint.textContent = '';
+  }
   formGrid.innerHTML = forms.map((form) => {
     if (!discovered.has(form.id)) {
       return '<div class="form-card is-unknown" aria-label="Undiscovered form"><span class="form-mark" aria-hidden="true">?</span><strong>Unknown form</strong><small>Silhouette</small></div>';
@@ -530,7 +570,7 @@ function renderGearItem(item: EquipmentItem, current: GameState, options: {
   if (options.showUnequip) controls.push(`<button class="gear-action" type="button" data-gear-action="unequip" data-slot="${options.showUnequip}" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>Unequip</button>`);
   if (options.showScrap) controls.push(`<button class="gear-action is-quiet" type="button" data-gear-action="scrap" data-instance-id="${escapeHtml(item.instanceId)}" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>Scrap · ${getScrapValue(item)}</button>`);
   if (options.showUpgrade) {
-    const cost = getUpgradeCost(item.upgradeLevel);
+    const cost = Math.max(1, Math.floor(getUpgradeCost(item.upgradeLevel) * getHomeEffects(current.home).upgradeCostMultiplier));
     const chance = getUpgradeSuccessChance(item.upgradeLevel + 1);
     controls.push(`<button class="gear-action" type="button" data-gear-action="upgrade" data-instance-id="${escapeHtml(item.instanceId)}" ${current.paused || current.dungeon.activeRun || item.upgradeLevel >= equipmentRules.upgrades.maximumLevel || current.dungeon.scrap < cost ? 'disabled' : ''}>Upgrade to +${item.upgradeLevel + 1} · ${cost} Scrap${chance < 1 ? ` · ${Math.round(chance * 100)}%` : ''}</button>`);
   }
@@ -587,18 +627,21 @@ function renderGearBag(current: GameState): string {
   const commonInputs = matching && selected[0]!.rarity === 'Common';
   const availableAffixes = [...new Map(selected.flatMap((item) => getItemPreview(item)?.affixes ?? []).map((affix) => [affix.id, affix])).values()];
   const keepAffix = gearContent.querySelector<HTMLSelectElement>('#fusion-affix')?.value ?? '';
-  const canFuse = Boolean(matching && nextRarity && (commonInputs || availableAffixes.some((affix) => affix.id === keepAffix)) && !current.paused && !current.dungeon.activeRun);
+  const homeEffects = getHomeEffects(current.home);
+  const fusionScrapCost = Math.max(1, Math.floor(equipmentRules.fusion.scrapCostBase * homeEffects.fusionCostMultiplier));
+  const canFuse = Boolean(matching && nextRarity && (commonInputs || availableAffixes.some((affix) => affix.id === keepAffix)) && !current.paused && !current.dungeon.activeRun && current.dungeon.scrap >= fusionScrapCost);
   const runItems = current.dungeon.activeRun?.pendingItems ?? [];
   const fusionPanel = `<section class="gear-fusion-panel"><div><p class="eyebrow">Three become one</p><h3>Fusion</h3><p>Choose three items of the same slot and rarity. Common gear rolls a new affix; higher rarities keep one you choose.</p></div>
     <p class="fusion-count" aria-live="polite">${selected.length} / ${equipmentRules.fusion.inputCount} selected</p>
     ${matching && nextRarity && !commonInputs ? `<label class="gear-field" for="fusion-affix">Keep an affix<select id="fusion-affix"><option value="">Choose an affix</option>${availableAffixes.map((affix) => `<option value="${escapeHtml(affix.id)}" ${keepAffix === affix.id ? 'selected' : ''}>${escapeHtml(getAffixDefinition(affix.id)?.name ?? affix.name)}</option>`).join('')}</select></label>` : ''}
-    <button class="primary-button" type="button" data-gear-action="fuse" ${canFuse ? '' : 'disabled'}>${nextRarity ? `Fuse into ${nextRarity}` : 'Choose three matching items'}</button>
+    <button class="primary-button" type="button" data-gear-action="fuse" ${canFuse ? '' : 'disabled'}>${nextRarity ? `Fuse into ${nextRarity} · ${fusionScrapCost} Scrap` : 'Choose three matching items'}</button>
+    ${matching && nextRarity && current.dungeon.scrap < fusionScrapCost ? `<small>Fusion needs ${fusionScrapCost} Scrap.</small>` : ''}
     ${selected.length === equipmentRules.fusion.inputCount && !matching ? '<small>Those items do not share a slot and rarity.</small>' : ''}
   </section>`;
   const items = current.equipment.inventory.map((item) => renderGearItem(item, current, { showEquip: true, showScrap: true, showFuse: true })).join('');
   const autoScrapOptions: Array<ItemRarity | 'off'> = ['off', ...equipmentRules.fusion.rarityOrder];
   const runGearShelf = current.dungeon.activeRun ? `<section class="run-gear-shelf"><div class="gear-slot-heading"><h3>Carried this run</h3><span>${runItems.length} item${runItems.length === 1 ? '' : 's'}</span></div><p class="gear-bag-hint">These finds are still at risk until you safely bank or salvage them at the end of a run.</p>${runItems.length ? `<div class="run-gear-list">${runItems.map((item) => renderGearItem(item, current)).join('')}</div>` : '<p class="gear-empty-slot">No gear carried yet. Shop buys and drops appear here until the run ends.</p>'}</section>` : '';
-  return `<section class="gear-bag-head"><div><p class="eyebrow">A little shelf for finds</p><h3>Your bag</h3></div><span>${current.equipment.inventory.length} / ${equipmentRules.inventory.capacity}</span>
+  return `<section class="gear-bag-head"><div><p class="eyebrow">A little shelf for finds</p><h3>Your bag</h3></div><span>${current.equipment.inventory.length} / ${homeEffects.inventoryCapacity}</span>
     <label class="gear-field" for="auto-scrap-select">Auto-scrap new drops<select id="auto-scrap-select" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>${autoScrapOptions.map((value) => `<option value="${value}" ${current.equipment.autoScrapThrough === value ? 'selected' : ''}>${value === 'off' ? 'Off' : `Through ${value}`}</option>`).join('')}</select></label></section>
     ${current.equipment.inventory.length ? '<p class="gear-bag-hint">Pick an item to equip it, or scrap it for upgrade material. Select three matching pieces to fuse.</p>' : '<p class="gear-empty-bag">Your bag is quiet for now. Elites, bosses and treasure rooms can leave gear behind.</p>'}
     ${items ? `<div class="gear-bag-grid">${items}</div>` : ''}${fusionPanel}${runGearShelf}
@@ -631,6 +674,84 @@ function renderEquipment(current: GameState): void {
   else gearContent.innerHTML = renderGearWorkshop(current);
 }
 
+function renderHomeUpgrades(current: GameState): string {
+  const effects = getHomeEffects(current.home, current.formDex.length);
+  const upgradeCards = getHomeUpgradeDefinitions().map((upgrade) => {
+    const level = current.home.upgradeLevels[upgrade.id];
+    const cost = getHomeUpgradeCost(current.home, upgrade.id);
+    const effectText: Record<HomeUpgradeId, string> = {
+      kitchen: `Snacks ×${effects.feedEffectMultiplier.toFixed(2)} · ${effects.packSlots} pack slots · next meal +${Math.round(effects.mealStatBonus * 100)}% to one stat`,
+      gym: `Training cap ${getTrainingCap(current.level, level)} per stat · mini-game rewards ×${effects.miniGameRewardMultiplier.toFixed(2)}`,
+      workshop: `Bag ${current.equipment.inventory.length}/${effects.inventoryCapacity} · upgrades ${Math.round((1 - effects.upgradeCostMultiplier) * 100)}% cheaper · fusion ${Math.round((1 - effects.fusionCostMultiplier) * 100)}% cheaper`,
+      nursery: `Next-generation stat legacy +${Math.round(effects.legacyStatBonusPerGeneration * 100)}% · extra inherited traits ${effects.extraInheritedTraits}`,
+      library: `Form discovery stat bonus +${((effects.dexStatMultiplier - 1) * 100).toFixed(1)}% · evolution clues ${effects.weightHintLevel ? (effects.advancedWeightHintLevel ? 'advanced' : 'basic') : 'locked'}`,
+    };
+    const atMaximum = cost === null;
+    return `<article class="home-upgrade-card" data-upgrade="${upgrade.id}">
+      <div class="home-upgrade-top"><span class="home-upgrade-icon" aria-hidden="true">${escapeHtml(upgrade.icon)}</span><div><h3>${escapeHtml(upgrade.name)}</h3><span class="home-level">Level ${level} / 5</span></div></div>
+      <p>${escapeHtml(upgrade.description)}</p><p class="home-effect-line">${escapeHtml(effectText[upgrade.id])}</p>
+      <button class="home-action" type="button" data-home-action="upgrade" data-upgrade-id="${upgrade.id}" ${current.paused || current.dungeon.activeRun || atMaximum || current.dungeon.coins < (cost ?? 0) ? 'disabled' : ''}>${atMaximum ? 'Fully upgraded' : `Upgrade · ${cost} coins`}</button>
+    </article>`;
+  }).join('');
+  const meal = current.home.preparedMeal;
+  const mealOptions = (Object.keys(statLabels) as StatKey[]).map((stat) => `<option value="${stat}" ${selectedMealStat === stat ? 'selected' : ''}>${statLabels[stat]} (${stat})</option>`).join('');
+  const mealPanel = `<section class="home-meal"><div><p class="eyebrow">Kitchen · next run</p><h3>Prepare a little meal</h3><p>A free, one-run boost. The meal is consumed when Pip enters the dungeon.</p></div>
+    ${meal ? `<p class="meal-ready" role="status">Meal ready: +${Math.round(meal.bonus * 100)}% ${statLabels[meal.stat]} for the next run.</p>` : `<label class="home-field" for="home-meal-stat">Choose a stat<select id="home-meal-stat" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>${mealOptions}</select></label><button class="home-action" type="button" data-home-action="cook-meal" ${current.paused || current.dungeon.activeRun ? 'disabled' : ''}>Cook meal · +${Math.round(effects.mealStatBonus * 100)}%</button>`}
+    ${current.dungeon.activeRun ? '<small class="home-lock-note">You can prepare the next meal after returning.</small>' : ''}</section>`;
+  return `<section class="home-intro"><p class="eyebrow">Every run builds something</p><h3>Small improvements, carried forward.</h3><p>Upgrades cost banked coins. A run must be finished before changing Home.</p></section><div class="home-upgrade-grid">${upgradeCards}</div>${mealPanel}`;
+}
+
+function renderHomeAchievements(current: GameState): string {
+  const statuses = getAchievementStatuses(current);
+  const cards = statuses.map((achievement) => {
+    const percent = Math.min(100, Math.round(achievement.progress / Math.max(1, achievement.target) * 100));
+    const rewardParts = [
+      achievement.rewards.coins ? `${achievement.rewards.coins} coins` : '',
+      achievement.rewards.essence ? `${achievement.rewards.essence} Essence` : '',
+      ...achievement.rewards.cosmetics.map((id) => getCosmeticName(id)),
+    ].filter(Boolean);
+    return `<article class="home-achievement${achievement.unlocked ? ' is-unlocked' : ''}">
+      <div class="achievement-top"><div><h3>${escapeHtml(achievement.title)}</h3><p>${escapeHtml(achievement.description)}</p></div><span class="achievement-state">${achievement.unlocked ? 'Unlocked' : 'In progress'}</span></div>
+      <div class="achievement-progress"><span>${achievement.progress} / ${achievement.target}</span><div role="progressbar" aria-label="${escapeHtml(achievement.title)} progress" aria-valuemin="0" aria-valuemax="${achievement.target}" aria-valuenow="${achievement.progress}"><span style="width:${percent}%"></span></div></div>
+      <small class="achievement-reward">Reward: ${escapeHtml(rewardParts.join(' · ') || 'A little keepsake')}</small>
+    </article>`;
+  }).join('');
+  const keepsakes = current.home.unlockedCosmeticIds.length
+    ? current.home.unlockedCosmeticIds.map((id) => `<span class="keepsake-chip"><span aria-hidden="true">✦</span>${escapeHtml(getCosmeticName(id))}</span>`).join('')
+    : '<p class="home-empty">Keepsakes will appear here when an achievement unlocks one.</p>';
+  return `<section class="home-intro"><p class="eyebrow">Little milestones</p><h3>${current.home.unlockedAchievementIds.length} of ${statuses.length} achievements</h3><p>Rewards arrive automatically when a goal is reached.</p></section><div class="achievement-grid">${cards}</div><section class="home-keepsakes"><h3>Unlocked keepsakes</h3><div class="keepsake-list">${keepsakes}</div></section>`;
+}
+
+function renderHomeRecords(current: GameState): string {
+  const activeSets = Object.values(getEquipmentSetCounts(current.equipment)).filter((count) => count >= 2).length;
+  const entries: Array<[string, string | number]> = [
+    ['Current generation', current.generation],
+    ['Lifetime room clears', current.records.totalRoomsCleared],
+    ['Bosses defeated', current.records.bossesDefeated],
+    ['Runs completed', current.dungeon.runsCompleted],
+    ['Safe returns', current.records.runsLeftSafely],
+    ['Faints', current.records.runsFainted],
+    ['Deepest floor · this pet', current.dungeon.petDeepestFloor],
+    ['Deepest floor · all time', current.dungeon.deepestFloor],
+    ['Best floor in one run', current.records.bestRunFloor],
+    ['Coins banked · lifetime', current.records.totalCoinsBanked],
+    ['Forms discovered', `${current.formDex.length} / ${getAllForms().length}`],
+    ['Active 2-piece sets', activeSets],
+    ['Keepsakes unlocked', current.home.unlockedCosmeticIds.length],
+  ];
+  return `<section class="home-intro"><p class="eyebrow">A growing little history</p><h3>Pip's records</h3><p>Milestones and totals stay on this device.</p></section><div class="record-grid">${entries.map(([label, value]) => `<div class="record-card"><small>${escapeHtml(label)}</small><strong>${escapeHtml(String(value))}</strong></div>`).join('')}</div>`;
+}
+
+function renderHome(current: GameState): void {
+  homeWallet.innerHTML = `<span><small>Coins</small><strong>${current.dungeon.coins}</strong></span><span><small>Scrap</small><strong>${current.dungeon.scrap}</strong></span><span><small>Essence</small><strong>${current.dungeon.essence}</strong></span><span><small>Achievements</small><strong>${current.home.unlockedAchievementIds.length}</strong></span>`;
+  homeDialog.querySelectorAll<HTMLButtonElement>('[data-home-tab]').forEach((tab) => {
+    tab.setAttribute('aria-selected', String(tab.dataset.homeTab === selectedHomeTab));
+  });
+  if (selectedHomeTab === 'upgrades') homeContent.innerHTML = renderHomeUpgrades(current);
+  else if (selectedHomeTab === 'achievements') homeContent.innerHTML = renderHomeAchievements(current);
+  else homeContent.innerHTML = renderHomeRecords(current);
+}
+
 function healthMeter(label: string, value: number, maximum: number, kind: string): string {
   const percent = Math.max(0, Math.min(100, Math.round((value / Math.max(1, maximum)) * 100)));
   return `<div class="dungeon-meter dungeon-meter-${kind}" role="progressbar" aria-label="${escapeHtml(label)}" aria-valuemin="0" aria-valuemax="${Math.round(maximum)}" aria-valuenow="${Math.round(value)}"><span style="width:${percent}%"></span><small>${escapeHtml(label)} · ${Math.round(value)} / ${Math.round(maximum)}</small></div>`;
@@ -657,6 +778,8 @@ function renderPack(run: DungeonRunState): string {
 
 function renderDungeonStart(current: GameState): string {
   const active = current.stage !== 'egg' && !current.sleeping && Boolean(current.evolution.formId);
+  const packLimit = getHomeEffects(current.home, current.formDex.length).packSlots;
+  const meal = current.home.preparedMeal;
   const items = dungeonData.consumables.map((item) => `
     <label class="pack-choice">
       <input type="checkbox" data-pack-item value="${escapeHtml(item.id)}" ${selectedDungeonPack.includes(item.id) ? 'checked' : ''} />
@@ -667,13 +790,13 @@ function renderDungeonStart(current: GameState): string {
     ? 'Pip can enter after hatching.'
     : current.sleeping
       ? 'Wake Pip before setting out.'
-      : 'Choose up to three run-only items. Unused items leave with the run.';
+      : `Choose up to ${packLimit} run-only items. Unused items leave with the run.${meal ? ` Your meal will boost ${meal.stat} by ${Math.round(meal.bonus * 100)}%.` : ''}`;
   return `<div class="dungeon-start-grid">
     <section class="dungeon-start-story"><p class="eyebrow">A new route every time</p><h3>Make a small plan, then see how far Pip can go.</h3><p>${escapeHtml(reason)}</p>
       <div class="dungeon-records"><span><strong>${current.dungeon.coins}</strong><small>banked coins</small></span><span><strong>${current.dungeon.scrap}</strong><small>Scrap</small></span><span><strong>${current.dungeon.essence}</strong><small>Essence</small></span><span><strong>${current.dungeon.petDeepestFloor}</strong><small>this pet's best floor</small></span></div>
       <p class="dungeon-note">Leave safely to bank all carried gear and materials. Fainting keeps half the coins, random half the gear and half the materials.</p>
     </section>
-    <section class="pack-picker" aria-labelledby="pack-title"><div class="dungeon-section-heading"><div><p class="eyebrow">Before the first step</p><h3 id="pack-title">Pack up to 3 items</h3></div><span class="pack-count" id="pack-count">0 / 3</span></div>
+    <section class="pack-picker" aria-labelledby="pack-title"><div class="dungeon-section-heading"><div><p class="eyebrow">Before the first step</p><h3 id="pack-title">Pack up to ${packLimit} items</h3></div><span class="pack-count" id="pack-count">0 / ${packLimit}</span></div>
       <div class="pack-choice-list">${items}</div>
       <button class="primary-button dungeon-start-button" type="button" data-run-action="start" data-testid="dungeon-start" ${active ? '' : 'disabled'}>Start a run</button>
     </section>
@@ -685,12 +808,13 @@ function bindDungeonStartControls(current: GameState): void {
   if (startButton) startButton.disabled = current.paused || current.stage === 'egg' || current.sleeping || !current.evolution.formId;
   const packChecks = [...dungeonContent.querySelectorAll<HTMLInputElement>('[data-pack-item]')];
   const packCount = dungeonContent.querySelector<HTMLElement>('#pack-count');
+  const packLimit = getHomeEffects(current.home, current.formDex.length).packSlots;
   const refreshPackCount = () => {
     const selectedChecks = packChecks.filter((check) => check.checked);
     selectedDungeonPack = selectedChecks.map((check) => check.value);
     const selected = selectedChecks.length;
-    if (packCount) packCount.textContent = `${selected} / ${dungeonRules.packSlots}`;
-    packChecks.forEach((check) => { check.disabled = !check.checked && selected >= dungeonRules.packSlots; });
+    if (packCount) packCount.textContent = `${selected} / ${packLimit}`;
+    packChecks.forEach((check) => { check.disabled = !check.checked && selected >= packLimit; });
   };
   packChecks.forEach((check) => check.addEventListener('change', refreshPackCount));
   refreshPackCount();
@@ -704,6 +828,7 @@ function renderDungeon(current: GameState): void {
     return;
   }
   selectedDungeonPack = [];
+  const homeEffects = getHomeEffects(current.home, current.formDex.length);
 
   const biome = dungeonData.biomes.find((item) => item.id === run.biomeId) ?? getBiomeForFloor(run.floor);
   const roomCount = run.floor % dungeonData.rooms.bossEveryFloors === 0 ? 1 : dungeonData.rooms.roomsPerFloor;
@@ -750,10 +875,10 @@ function renderDungeon(current: GameState): void {
     const consumableShelf = run.shopOfferIds.map((id) => {
       const item = dungeonData.consumables.find((candidate) => candidate.id === id);
       if (!item) return '';
-      return `<div class="shop-item"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description)}</small></span><button class="shop-buy" type="button" data-run-action="buy" data-consumable-id="${escapeHtml(item.id)}" ${run.consumables.length >= dungeonRules.packSlots || run.coins < item.price ? 'disabled' : ''}>${item.price} coins</button></div>`;
+      return `<div class="shop-item"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description)}</small></span><button class="shop-buy" type="button" data-run-action="buy" data-consumable-id="${escapeHtml(item.id)}" ${run.consumables.length >= homeEffects.packSlots || run.coins < item.price ? 'disabled' : ''}>${item.price} coins</button></div>`;
     }).join('');
     const gearShelf = run.shopEquipmentOffers.map((offer) => {
-      const full = current.equipment.inventory.length + run.pendingItems.length >= equipmentRules.inventory.capacity;
+      const full = current.equipment.inventory.length + run.pendingItems.length >= homeEffects.inventoryCapacity;
       const autoScrap = shouldAutoScrap(offer.item, current.equipment.autoScrapThrough);
       return `<div class="shop-gear-offer">${renderGearItem(offer.item, current)}<button class="shop-buy" type="button" data-run-action="buy-gear" data-offer-id="${escapeHtml(offer.id)}" ${full || autoScrap || run.pendingItems.length >= equipmentRules.inventory.pendingItemsPerRunCap || run.coins < offer.price ? 'disabled' : ''}>${offer.price} coins · add to bag</button></div>`;
     }).join('');
@@ -773,7 +898,7 @@ function renderDungeon(current: GameState): void {
       <div class="care-conditions"><span>Hunger ${Math.round(current.needs.hunger)}%</span><span>Energy ${Math.round(current.needs.energy)}%</span></div>
       ${modifiers.length ? `<div class="run-modifiers" aria-label="Run boons and curses">${modifiers.map((modifier) => `<span>${escapeHtml(modifier)}</span>`).join('')}</div>` : ''}
     </section>
-    <section class="dungeon-console">${stage}${run.phase !== 'summary' ? `<section class="pack-panel" aria-label="Run pack"><div class="dungeon-section-heading"><h3>Run pack</h3><span>${run.consumables.length} / ${dungeonRules.packSlots}</span></div>${renderPack(run)}</section>` : ''}</section>
+    <section class="dungeon-console">${stage}${run.phase !== 'summary' ? `<section class="pack-panel" aria-label="Run pack"><div class="dungeon-section-heading"><h3>Run pack</h3><span>${run.consumables.length} / ${homeEffects.packSlots}</span></div>${renderPack(run)}</section>` : ''}</section>
   </div>`;
 }
 
@@ -1073,6 +1198,7 @@ function updateControls(current: GameState): void {
   dungeonOpen.setAttribute('aria-pressed', String(Boolean(current.dungeon.activeRun)));
   if (dungeonDialog.open) renderDungeon(current);
   if (gearDialog.open) renderEquipment(current);
+  if (homeDialog.open) renderHome(current);
 
   overlay.hidden = !current.paused;
   if (current.paused) must<HTMLButtonElement>('#resume-button').focus({ preventScroll: true });
@@ -1117,6 +1243,7 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
     const previousStage = state?.stage;
     const previousForm = state?.evolution.formId;
     const previousGeneration = state?.generation;
+    const previousAchievements = new Set(state?.home.unlockedAchievementIds ?? []);
     state = message.state;
     updateControls(state);
     if (previousGeneration !== undefined && state.generation > previousGeneration) {
@@ -1126,6 +1253,8 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
     } else if (previousForm && state.evolution.formId && previousForm !== state.evolution.formId) {
       showToast(`Pip grew into ${getFormDefinition(state.evolution.formId)?.name ?? 'a new form'}.`);
     }
+    const newAchievements = getAchievementStatuses(state).filter((achievement) => achievement.unlocked && !previousAchievements.has(achievement.id));
+    if (newAchievements.length) showToast(`Achievement unlocked: ${newAchievements.map((achievement) => achievement.title).join(', ')}.`);
   } else if (message.type === 'action-result') {
     showToast(message.result.message);
     miniMode.setMessage(message.result.message);
@@ -1222,6 +1351,11 @@ root.addEventListener('click', (event) => {
     dungeonDialog.showModal();
   } else if (button.id === 'dungeon-close') {
     dungeonDialog.close();
+  } else if (button.id === 'home-open') {
+    if (state) renderHome(state);
+    homeDialog.showModal();
+  } else if (button.id === 'home-close') {
+    homeDialog.close();
   } else if (button.id === 'gear-open') {
     if (state) renderEquipment(state);
     gearDialog.showModal();
@@ -1234,6 +1368,13 @@ root.addEventListener('click', (event) => {
     }
   } else if (button.dataset.gearAction) {
     activateGearAction(button);
+  } else if (button.dataset.homeTab) {
+    if (button.dataset.homeTab === 'upgrades' || button.dataset.homeTab === 'achievements' || button.dataset.homeTab === 'records') {
+      selectedHomeTab = button.dataset.homeTab;
+      if (state) renderHome(state);
+    }
+  } else if (button.dataset.homeAction) {
+    activateHomeAction(button);
   } else if (button.id === 'forms-open') {
     if (state) renderFormDex(state);
     dexDialog.showModal();
@@ -1288,6 +1429,15 @@ dungeonDialog.addEventListener('click', (event) => {
 gearDialog.addEventListener('click', (event) => {
   if (event.target === gearDialog) gearDialog.close();
 });
+homeDialog.addEventListener('click', (event) => {
+  if (event.target === homeDialog) homeDialog.close();
+});
+homeDialog.addEventListener('change', (event) => {
+  const target = event.target;
+  if (target instanceof HTMLSelectElement && target.id === 'home-meal-stat' && Object.hasOwn(statLabels, target.value)) {
+    selectedMealStat = target.value as StatKey;
+  }
+});
 gearDialog.addEventListener('change', (event) => {
   const target = event.target;
   if (target instanceof HTMLInputElement && target.hasAttribute('data-fuse-item')) {
@@ -1326,7 +1476,7 @@ function syncAboutRoute(): void {
 }
 
 window.addEventListener('keydown', (event) => {
-  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open || settingsDialog.open || dexDialog.open || minigameDialog.open || dungeonDialog.open) return;
+  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open || settingsDialog.open || dexDialog.open || homeDialog.open || minigameDialog.open || dungeonDialog.open) return;
   const target = event.target as HTMLElement;
   if (target.matches('input, textarea, select, [contenteditable="true"]')) return;
   const key = event.key.toLowerCase();
@@ -1454,6 +1604,21 @@ function activateGearAction(button: HTMLButtonElement): void {
     selectedFuseIds = [];
   } else if (action === 'craft-stone') {
     sendAction({ type: 'craft-evolution-stone' });
+  }
+}
+
+function activateHomeAction(button: HTMLButtonElement): void {
+  if (button.dataset.homeAction === 'upgrade') {
+    const upgradeId = button.dataset.upgradeId;
+    if (upgradeId && getHomeUpgradeDefinitions().some((upgrade) => upgrade.id === upgradeId)) {
+      sendAction({ type: 'home-upgrade', upgradeId: upgradeId as HomeUpgradeId });
+    }
+  } else if (button.dataset.homeAction === 'cook-meal') {
+    const selected = homeContent.querySelector<HTMLSelectElement>('#home-meal-stat')?.value ?? selectedMealStat;
+    if (Object.hasOwn(statLabels, selected)) {
+      selectedMealStat = selected as StatKey;
+      sendAction({ type: 'home-cook-meal', stat: selectedMealStat });
+    }
   }
 }
 

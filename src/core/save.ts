@@ -4,6 +4,7 @@ import type { Element, GameState, LifeStage, Needs, PetRecord, Stats, Tendencies
 import { createInitialState } from './game';
 import { migrateDungeonProgress } from './dungeon';
 import { sanitizeEquipmentState } from './equipment';
+import { getHomeEffects, getTrainingCap, sanitizeGameRecords, sanitizeHomeProgress } from './home';
 
 const maximumLevel = Math.max(...Object.values(rules.lifeStages.levelCaps));
 
@@ -32,6 +33,9 @@ function validPetRecord(value: unknown): PetRecord | null {
   const inheritedTraitId = typeof value.inheritedTraitId === 'string' && getTraitDefinition(value.inheritedTraitId)
     ? value.inheritedTraitId
     : null;
+  const inheritedTraitIds = Array.isArray(value.inheritedTraitIds)
+    ? [...new Set(value.inheritedTraitIds.filter((id): id is string => typeof id === 'string' && Boolean(getTraitDefinition(id))))].slice(0, 8)
+    : inheritedTraitId ? [inheritedTraitId] : [];
   return {
     generation: Math.floor(boundedNumber(value.generation, 1, 1, 1_000_000)),
     name: getFormDefinition(formId)?.name ?? 'Pip',
@@ -40,15 +44,18 @@ function validPetRecord(value: unknown): PetRecord | null {
     activeSeconds: nonNegative(value.activeSeconds),
     deepestFloor: Math.floor(boundedNumber(value.deepestFloor, 0, 0, 1_000_000)),
     inheritedTraitId,
+    inheritedTraitIds,
   };
 }
 
 export function migrateSave(input: unknown): GameState {
   if (!isRecord(input)) throw new Error('Save data is not an object.');
   const version = typeof input.schemaVersion === 'number' ? input.schemaVersion : 0;
-  if (version > 4) throw new Error(`Save version ${version} is newer than this game.`);
+  if (version > 5) throw new Error(`Save version ${version} is newer than this game.`);
 
   const base = createInitialState(typeof input.seed === 'number' ? input.seed : 1);
+  const home = sanitizeHomeProgress(input.home);
+  const records = sanitizeGameRecords(input.records);
   const oldNeeds = isRecord(input.needs) ? input.needs : {};
   const needs: Needs = {
     hunger: boundedNumber(oldNeeds.hunger, base.needs.hunger, rules.needs.minimum, rules.needs.maximum),
@@ -74,7 +81,7 @@ export function migrateSave(input: unknown): GameState {
   const stage = validStage(input.stage);
   const levelCap = getLevelCap(stage);
   const level = Math.floor(boundedNumber(input.level, 1, 1, levelCap));
-  const trainingCap = level * rules.progression.trainingCapPerLevel;
+  const trainingCap = getTrainingCap(level, home.upgradeLevels.gym);
   const oldTraining = isRecord(input.training) ? input.training : {};
   const training: Stats = {
     HP: boundedNumber(oldTraining.HP, 0, 0, trainingCap),
@@ -118,7 +125,10 @@ export function migrateSave(input: unknown): GameState {
     evolutionStones: Math.floor(boundedNumber(oldEvolution.evolutionStones, 0, 0, 1_000_000)),
     elementMeals,
     inheritedTraitId: validTrait(oldEvolution.inheritedTraitId),
-    baseStatBonus: boundedNumber(oldEvolution.baseStatBonus, 0, 0, 100),
+    inheritedTraitIds: validTraitIds(oldEvolution.inheritedTraitIds).length
+      ? validTraitIds(oldEvolution.inheritedTraitIds)
+      : validTrait(oldEvolution.inheritedTraitId) ? [validTrait(oldEvolution.inheritedTraitId)!] : [],
+    baseStatBonus: boundedNumber(oldEvolution.baseStatBonus, 0, 0, 0.25),
   };
   const formDex = Array.isArray(input.formDex)
     ? [...new Set(input.formDex.filter((id): id is string => typeof id === 'string' && validFormIds.has(id)))].slice(0, forms.length)
@@ -128,12 +138,13 @@ export function migrateSave(input: unknown): GameState {
     ? input.hallOfPets.map(validPetRecord).filter((record): record is PetRecord => record !== null).slice(0, rules.progression.hallOfPetsLimit)
     : [];
   const seenItemIds = new Set<string>();
-  const equipment = sanitizeEquipmentState(input.equipment, seenItemIds);
-  const dungeon = migrateDungeonProgress(input.dungeon, seenItemIds);
+  const homeEffects = getHomeEffects(home, formDex.length);
+  const equipment = sanitizeEquipmentState(input.equipment, seenItemIds, homeEffects.inventoryCapacity);
+  const dungeon = migrateDungeonProgress(input.dungeon, seenItemIds, homeEffects.packSlots, homeEffects.inventoryCapacity);
 
   return {
     ...base,
-    schemaVersion: 4,
+    schemaVersion: 5,
     seed: typeof input.seed === 'number' ? input.seed >>> 0 : base.seed,
     stage,
     stageSeconds: Math.min(nonNegative(input.stageSeconds), rules.lifeStages.stageMinutes[stage] * 60),
@@ -156,6 +167,8 @@ export function migrateSave(input: unknown): GameState {
     hallOfPets,
     dungeon,
     equipment,
+    home,
+    records,
     miniGameCooldownSeconds: boundedNumber(input.miniGameCooldownSeconds, 0, 0, rules.progression.miniGameCooldownSeconds),
     peakLevel: Math.floor(boundedNumber(input.peakLevel, level, level, maximumLevel)),
   };

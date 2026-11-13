@@ -175,11 +175,13 @@ describe('Phase 5 equipment and loot', () => {
   it('fuses three matching Common items into one Uncommon item and rejects mismatched inputs', () => {
     const inputs = [makeItem('fuse-a'), makeItem('fuse-b'), makeItem('fuse-c')];
     const state = stateWithItems(inputs);
+    state.dungeon = { ...state.dungeon, scrap: rules.fusion.scrapCostBase };
     const fused = applyEquipmentAction(state, { type: 'fuse-items', instanceIds: inputs.map((item) => item.instanceId), keepAffixId: null });
     expect(fused?.accepted).toBe(true);
     expect(fused?.state.equipment.inventory).toHaveLength(1);
     expect(fused?.state.equipment.inventory[0]?.rarity).toBe('Uncommon');
     expect(getItemTemplate(fused!.state.equipment.inventory[0]!.templateId)?.slot).toBe('Weapon');
+    expect(fused?.state.dungeon.scrap).toBe(0);
 
     const mismatch = applyEquipmentAction(state, { type: 'fuse-items', instanceIds: [inputs[0]!.instanceId, inputs[1]!.instanceId, 'missing'], keepAffixId: null });
     expect(mismatch?.accepted).toBe(false);
@@ -187,13 +189,19 @@ describe('Phase 5 equipment and loot', () => {
 
     const rareInputs = [makeItem('rare-fuse-a', 'Rare'), makeItem('rare-fuse-b', 'Rare'), makeItem('rare-fuse-c', 'Rare')];
     const retainedAffix = getItemPreview(rareInputs[0]!)!.affixes[0]!.id;
-    const rareResult = applyEquipmentAction(stateWithItems(rareInputs), {
+    const rareState = stateWithItems(rareInputs);
+    rareState.dungeon = { ...rareState.dungeon, scrap: rules.fusion.scrapCostBase };
+    const rareResult = applyEquipmentAction(rareState, {
       type: 'fuse-items', instanceIds: rareInputs.map((item) => item.instanceId), keepAffixId: retainedAffix,
     });
     expect(rareResult?.accepted).toBe(true);
     const fusedItem = rareResult!.state.equipment.inventory[0]!;
     expect(fusedItem.rarity).toBe('Epic');
     expect(getItemPreview(fusedItem)?.affixes.some((affix) => affix.id === retainedAffix)).toBe(true);
+
+    const broke = applyEquipmentAction(stateWithItems(inputs), { type: 'fuse-items', instanceIds: inputs.map((item) => item.instanceId), keepAffixId: null });
+    expect(broke?.accepted).toBe(false);
+    expect(broke?.message).toContain(`${rules.fusion.scrapCostBase} Scrap`);
   });
 
   it('crafts an Evolution Stone from Essence without allowing equipment edits during a run', () => {

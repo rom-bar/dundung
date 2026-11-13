@@ -61,7 +61,7 @@ interface EquipmentRules {
   inventory: { capacity: number; pendingItemsPerRunCap: number; fullBagOverflow: string; autoScrapDefault?: AutoScrapThreshold };
   scrap: { yieldByRarity: Record<ItemRarity, number>; upgradeCostExponentBase: number; upgradeCostBase: number };
   upgrades: { maximumLevel: number; startingLevel: number; minimumLevel?: number; successChanceByTargetLevel: Record<string, number>; statBonusPerLevel: number };
-  fusion: { inputCount: number; rarityOrder: ItemRarity[]; outputLevel: number };
+  fusion: { inputCount: number; rarityOrder: ItemRarity[]; outputLevel: number; scrapCostBase: number };
   shop: { offerCount: number; itemPriceFactorsByRarity: Record<ItemRarity, number>; refreshCost: number };
   currencies: { bossEssenceYield: { min: number; max: number }; essencePerEvolutionStone: number };
   legendaryEffects: LegendaryEffect[];
@@ -180,10 +180,15 @@ export function sanitizeEquipmentItem(value: unknown, seenIds: Set<string> = new
   };
 }
 
-export function sanitizeEquipmentState(value: unknown, seenIds = new Set<string>()): EquipmentState {
+export function sanitizeEquipmentState(
+  value: unknown,
+  seenIds = new Set<string>(),
+  inventoryCapacity = equipmentRules.inventory.capacity,
+): EquipmentState {
   if (!isRecord(value)) return createEmptyEquipment();
+  const safeCapacity = Math.max(0, Math.floor(boundedNumber(inventoryCapacity, equipmentRules.inventory.capacity, 0, 1_000_000)));
   const inventory: EquipmentItem[] = Array.isArray(value.inventory)
-    ? value.inventory.slice(0, equipmentRules.inventory.capacity).flatMap((item) => {
+    ? value.inventory.slice(0, safeCapacity).flatMap((item) => {
       const safe = sanitizeEquipmentItem(item, seenIds);
       return safe ? [safe] : [];
     })

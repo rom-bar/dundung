@@ -13,6 +13,7 @@ import {
   nextFusionRarity,
 } from './equipment';
 import { grantEvolutionStone } from './progression';
+import { getHomeEffects } from './home';
 import { nextRandom } from './rng';
 import type { ActionResult, EquipmentItem, EquipmentSlot, GameAction, GameState } from './types';
 
@@ -52,7 +53,7 @@ function applyUpgrade(state: GameState, instanceId: string): ActionResult {
   const found = findItem(state, instanceId);
   if (!found) return reject(state, 'That gear is no longer in your collection.');
   if (found.item.upgradeLevel >= equipmentRules.upgrades.maximumLevel) return reject(state, 'This gear is already at its maximum upgrade level.');
-  const cost = getUpgradeCost(found.item.upgradeLevel);
+  const cost = Math.max(1, Math.floor(getUpgradeCost(found.item.upgradeLevel) * getHomeEffects(state.home).upgradeCostMultiplier));
   if (state.dungeon.scrap < cost) return reject(state, `This upgrade needs ${cost} Scrap.`);
   const targetLevel = found.item.upgradeLevel + 1;
   const chance = getUpgradeSuccessChance(targetLevel);
@@ -82,6 +83,8 @@ function fuseItems(state: GameState, instanceIds: string[], keepAffixId: string 
   if (!equipmentItemsHaveSameSlotAndRarity(inputs)) return reject(state, 'Fusion needs items of the same slot and rarity.');
   const targetRarity = nextFusionRarity(inputs[0]!.rarity);
   if (!targetRarity) return reject(state, 'Legendary gear cannot be fused further.');
+  const fusionScrapCost = Math.max(1, Math.floor(equipmentRules.fusion.scrapCostBase * getHomeEffects(state.home).fusionCostMultiplier));
+  if (state.dungeon.scrap < fusionScrapCost) return reject(state, `Fusion needs ${fusionScrapCost} Scrap.`);
   const chosenAffixIds = new Set(inputs.flatMap((item) => getItemPreview(item)?.affixes.map((affix) => affix.id) ?? []));
   if (inputs[0]!.rarity === 'Common') {
     if (keepAffixId !== null) return reject(state, 'Common gear has no affix to carry into the fusion.');
@@ -119,10 +122,11 @@ function fuseItems(state: GameState, instanceIds: string[], keepAffixId: string 
     state: {
       ...state,
       seed: selection.seed,
+      dungeon: { ...state.dungeon, scrap: state.dungeon.scrap - fusionScrapCost },
       equipment: { ...allocation.equipment, inventory: [...state.equipment.inventory.filter((item) => !consumed.has(item.instanceId)), fused] },
     },
     accepted: true,
-    message: `Fusion complete: ${targetRarity} ${template.name} created at item level ${fused.ilvl}.`,
+    message: `Fusion complete: ${targetRarity} ${template.name} created at item level ${fused.ilvl} for ${fusionScrapCost} Scrap.`,
   };
 }
 
@@ -160,7 +164,7 @@ export function applyEquipmentAction(state: GameState, action: GameAction): Acti
     if (!slots.includes(action.slot)) return reject(state, 'That equipment slot is not available.');
     const item = state.equipment.equipped[action.slot];
     if (!item) return reject(state, `Nothing is equipped in ${action.slot}.`);
-    if (state.equipment.inventory.length >= equipmentRules.inventory.capacity) return reject(state, 'Your bag is full; scrap an item before unequipping this gear.');
+    if (state.equipment.inventory.length >= getHomeEffects(state.home).inventoryCapacity) return reject(state, 'Your bag is full; scrap an item before unequipping this gear.');
     return {
       state: {
         ...state,

@@ -1,0 +1,51 @@
+{
+  "cost": {
+    "base": 50,
+    "growth": 1.6
+  },
+  "maximumLevel": 5,
+  "cosmetics": [
+    { "id": "moss-lantern", "name": "Moss Lantern" },
+    { "id": "ginger-pin", "name": "Ginger Pin" },
+    { "id": "starwing-aura", "name": "Starwing Aura" }
+  ],
+  "effects": {
+    "kitchen": {
+      "feedEffectPerLevel": 0.05,
+      "maximumFeedEffectBonus": 0.25,
+      "basePackSlots": 3,
+      "additionalPackSlotEveryLevels": 2,
+      "maximumPackSlots": 5,
+      "baseMealStatBonus": 0.1,
+      "mealStatBonusPerLevel": 0.02,
+      "maximumMealStatBonus": 0.2
+    },
+    "gym": {
+      "trainingCapMultiplierPerLevel": 0.15,
+      "miniGameRewardMultiplierPerLevel": 0.1
+    },
+    "workshop": {
+      "upgradeCostDiscountPerLevel": 0.08,
+      "fusionCostDiscountPerLevel": 0.1,
+      "inventorySlotsPerLevel": 5
+    },
+    "nursery": {
+      "extraInheritedTraitAtLevel": 3,
+      "maximumExtraInheritedTraits": 1,
+      "legacyStatBonusPerLevel": 0.01,
+      "maximumLegacyStatBonus": 0.25
+    },
+    "library": {
+      "dexStatBonusPerFormPerLevel": 0.0005,
+      "weightHintLevel": 1,
+      "advancedWeightHintLevel": 3
+    }
+  },
+  "upgrades": [
+    { "id": "kitchen", "name": "Kitchen", "icon": "♨", "description": "More nourishing snacks and a one-run meal. At level 2 and 4, carry one extra pack item." },
+    { "id": "gym", "name": "Training Gym", "icon": "↗", "description": "Raises Pip’s training cap and awards more points from mini-games." },
+    { "id": "workshop", "name": "Workshop", "icon": "⚒", "description": "Reduces upgrade and fusion Scrap costs, and expands the permanent gear bag." },
+    { "id": "nursery", "name": "Nursery", "icon": "✿", "description": "Passes down more family traits and grows the family’s legacy stat bonus." },
+    { "id": "library", "name": "Library", "icon": "⌕", "description": "Form discoveries add a small stat bonus and unlock clearer evolution clues." }
+  ]
+}

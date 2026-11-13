@@ -1,6 +1,7 @@
 import rules from '../data/rules.json';
 import foods from '../data/foods.json';
 import { createEmptyEquipment, getEquipmentCombatEffects } from './equipment';
+import { applyHomeAction, createGameRecords, createHomeProgress, getHomeEffects, unlockReadyAchievements } from './home';
 import { applyEquipmentAction } from './inventory';
 import {
   awardTraining,
@@ -33,7 +34,7 @@ function stageDurationSeconds(stage: GameState['stage']): number {
 
 export function createInitialState(seed = 1): GameState {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     seed: seed >>> 0,
     stage: 'egg',
     stageSeconds: 0,
@@ -60,18 +61,21 @@ export function createInitialState(seed = 1): GameState {
       evolutionStones: 0,
       elementMeals: { fire: 0, water: 0, moss: 0, storm: 0, shadow: 0 },
       inheritedTraitId: null,
+      inheritedTraitIds: [],
       baseStatBonus: 0,
     },
     formDex: [],
     hallOfPets: [],
     dungeon: createEmptyDungeonProgress(),
     equipment: createEmptyEquipment(),
+    home: createHomeProgress(),
+    records: createGameRecords(),
     miniGameCooldownSeconds: 0,
     peakLevel: 1,
   };
 }
 
-export function advance(state: GameState, dtMs: number): GameState {
+function advanceCore(state: GameState, dtMs: number): GameState {
   if (state.paused || !Number.isFinite(dtMs) || dtMs <= 0) return state;
 
   const stepMs = Math.min(dtMs, rules.simulation.maxStepMs);
@@ -128,6 +132,11 @@ export function advance(state: GameState, dtMs: number): GameState {
   return advanceDungeon({ ...evolved, tendencies: { ...emptyTendencies() } }, stepSeconds);
 }
 
+export function advance(state: GameState, dtMs: number): GameState {
+  const next = advanceCore(state, dtMs);
+  return next === state ? state : unlockReadyAchievements(next).state;
+}
+
 export function advanceWithSignals(state: GameState, dtMs: number): { state: GameState; signals: NeedKey[] } {
   const next = advance(state, dtMs);
   if (next === state) return { state, signals: [] };
@@ -171,7 +180,7 @@ function completeMiniGame(state: GameState, action: Extract<GameAction, { type: 
   const score = Number.isFinite(action.score)
     ? Math.min(rules.progression.miniGameMaximumScore, Math.max(0, action.score))
     : 0;
-  const points = pointsForMiniGameScore(score);
+  const points = Math.round(pointsForMiniGameScore(score) * getHomeEffects(state.home).miniGameRewardMultiplier);
   const trainingResult = awardTraining(state, action.stat, points);
   let next = updateTendency(trainingResult.state, 'training', rules.progression.tendencySignals.training);
   next = {
@@ -188,12 +197,14 @@ function completeMiniGame(state: GameState, action: Extract<GameAction, { type: 
   return { state: next, accepted: true, message, action: trainingResult.awarded > 0 ? 'train' : undefined };
 }
 
-export function applyAction(state: GameState, action: GameAction): ActionResult {
+function applyActionCore(state: GameState, action: GameAction): ActionResult {
   if (state.paused) return reject(state, 'Tap continue before caring for Pip.');
   const dungeonResult = applyDungeonAction(state, action);
   if (dungeonResult) return dungeonResult;
   const equipmentResult = applyEquipmentAction(state, action);
   if (equipmentResult) return equipmentResult;
+  const homeResult = applyHomeAction(state, action);
+  if (homeResult) return homeResult;
   if (action.type === 'mini-game-complete') return completeMiniGame(state, action);
   if (action.type === 'use-evolution-stone') {
     if (state.evolution.evolutionStones < 1 || !state.evolution.formId) return reject(state, 'No Evolution Stone is ready.');
@@ -235,7 +246,7 @@ export function applyAction(state: GameState, action: GameAction): ActionResult 
       happiness: food.happiness,
       energy: food.energy,
       hygiene: food.hygiene,
-    }, traitEffects.foodEffectMultiplier * traitEffects.careEffectMultiplier * foodGearMultiplier);
+    }, traitEffects.foodEffectMultiplier * traitEffects.careEffectMultiplier * foodGearMultiplier * getHomeEffects(state.home).feedEffectMultiplier);
     next = recordFoodElement(next, food.tags);
     next = updateTendency(next, 'feedQuality', food.tags.includes('comfort')
       ? rules.progression.tendencySignals.feedComfort
@@ -284,6 +295,12 @@ export function applyAction(state: GameState, action: GameAction): ActionResult 
     message: 'Pip is fresh as a cave flower.',
     action: 'clean',
   };
+}
+
+export function applyAction(state: GameState, action: GameAction): ActionResult {
+  const result = applyActionCore(state, action);
+  if (!result.accepted) return result;
+  return { ...result, state: unlockReadyAchievements(result.state).state };
 }
 
 export function getNeedSignals(state: GameState): NeedKey[] {

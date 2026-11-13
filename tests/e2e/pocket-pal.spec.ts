@@ -236,14 +236,14 @@ test('Gear opens accessibly on every device and equips a catalog item through th
   for (const suffix of ['a', 'b', 'c']) {
     await dialog.locator(`[data-testid="gear-card-e2e-fuse-${suffix}"] input[data-fuse-item]`).check();
   }
-  const fuse = dialog.getByRole('button', { name: 'Fuse into Uncommon' });
+  const fuse = dialog.getByRole('button', { name: /Fuse into Uncommon/ });
   await expect(fuse).toBeEnabled();
   await fuse.click();
   await expect(dialog.locator('.gear-bag-grid .gear-card[data-rarity="Uncommon"]')).toHaveCount(1);
   const scrapCard = dialog.locator('[data-testid="gear-card-e2e-scrap-armor"]');
   await scrapCard.locator('[data-gear-action="scrap"]').click();
   await expect(dialog.locator('[data-testid="gear-card-e2e-scrap-armor"]')).toHaveCount(0);
-  await expect(dialog.locator('#gear-wallet span').nth(1).locator('strong')).toHaveText('111');
+  await expect(dialog.locator('#gear-wallet span').nth(1).locator('strong')).toHaveText('81');
 
   const autoScrap = dialog.locator('#auto-scrap-select');
   await expect(autoScrap).toBeEnabled();
@@ -260,6 +260,76 @@ test('Gear opens accessibly on every device and equips a catalog item through th
   expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(dimensions.width + 1);
   await dialog.getByRole('button', { name: 'Close gear and workshop' }).click();
   await expect(dialog).toBeHidden();
+});
+
+test('Home upgrades, achievements, records and Kitchen meals work on every device', async ({ page }) => {
+  await page.addInitScript(() => {
+    const workerPrototype = Worker.prototype as unknown as { postMessage: (...args: any[]) => void };
+    const originalPostMessage = workerPrototype.postMessage;
+    workerPrototype.postMessage = function (this: Worker, message: any, ...options: any[]) {
+      const loadMessage = message as { type?: string; state?: Record<string, any> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const evolution = loadMessage.state.evolution as Record<string, unknown>;
+        loadMessage.state = {
+          ...loadMessage.state,
+          stage: 'adult', paused: false, level: 40, peakLevel: 40,
+          evolution: { ...evolution, formId: 'fire-emberguard', traitIds: [] },
+          formDex: ['fire-emberguard'],
+          dungeon: { ...loadMessage.state.dungeon, coins: 500 },
+          home: {
+            ...loadMessage.state.home,
+            upgradeLevels: { ...loadMessage.state.home.upgradeLevels, library: 3 },
+          },
+        };
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  });
+  await openFreshGame(page);
+  const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(dimensions.scrollWidth, 'Home should not introduce horizontal page overflow').toBeLessThanOrEqual(dimensions.width);
+
+  await page.getByTestId('home-open').click();
+  const home = page.getByRole('dialog', { name: 'Home & family' });
+  await expect(home).toBeVisible();
+  await expect(home.getByRole('tab')).toHaveCount(3);
+  const kitchen = home.locator('[data-upgrade="kitchen"]');
+  await expect(kitchen).toContainText('Level 0 / 5');
+  await kitchen.locator('[data-home-action="upgrade"]').click();
+  await expect(kitchen).toContainText('Level 1 / 5');
+  await kitchen.locator('[data-home-action="upgrade"]').click();
+  await expect(kitchen).toContainText('Level 2 / 5');
+  await expect(home.locator('#home-wallet span').first().locator('strong')).toHaveText('370');
+
+  await home.locator('#home-meal-stat').selectOption('HP');
+  await home.getByRole('button', { name: /Cook meal/ }).click();
+  await expect(home.getByRole('status')).toContainText('Meal ready: +14% Health');
+  await home.getByRole('tab', { name: 'Achievements' }).click();
+  await expect(home.locator('.achievement-grid .home-achievement').first()).toBeVisible();
+  await home.getByRole('tab', { name: 'Records' }).click();
+  await expect(home.getByRole('heading', { name: "Pip's records" })).toBeVisible();
+  await expect(home.locator('.record-grid .record-card')).toHaveCount(13);
+  const homeBox = await home.boundingBox();
+  expect(homeBox).not.toBeNull();
+  expect(homeBox!.x).toBeGreaterThanOrEqual(0);
+  expect(homeBox!.x + homeBox!.width).toBeLessThanOrEqual(dimensions.width + 1);
+  await home.getByRole('button', { name: 'Close Home' }).click();
+
+  await page.getByTestId('forms-open').click();
+  const dex = page.getByRole('dialog', { name: 'Form Dex' });
+  await expect(dex.locator('#library-hint')).toContainText('Advanced Library clue');
+  await expect(dex.locator('#library-hint')).toContainText('weight share');
+  await dex.getByRole('button', { name: 'Close Form Dex' }).click();
+
+  await page.getByTestId('dungeon-open').click();
+  const dungeon = page.getByRole('dialog', { name: 'The Endless Descent' });
+  await expect(dungeon).toContainText('Pack up to 4 items');
+  await expect(dungeon.locator('#pack-count')).toHaveText('0 / 4');
+  const packItems = dungeon.locator('[data-pack-item]');
+  for (let index = 0; index < 4; index += 1) await packItems.nth(index).check();
+  await expect(packItems.nth(4)).toBeDisabled();
+  await dungeon.getByTestId('dungeon-start').click();
+  await expect(dungeon.locator('.run-modifiers')).toHaveText('HP ×1.14');
 });
 
 test('the traveling shop sells gear into the run bag without enabling loadout changes mid-run', async ({ page }) => {
