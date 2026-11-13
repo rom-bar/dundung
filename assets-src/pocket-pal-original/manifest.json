@@ -1,0 +1,34 @@
+{
+  "license": "CC0-1.0",
+  "author": "Pocket Pal project contributors",
+  "source": "Original pixel geometry authored in scripts/build-pocket-pal-original-art.py; no third-party art copied.",
+  "frameSize": [
+    48,
+    48
+  ],
+  "renderScale": {
+    "sprite": 1,
+    "cameraZoom": 2,
+    "sourcePixelOutputPixels": 2
+  },
+  "petPalettes": [
+    "fire",
+    "water",
+    "moss",
+    "storm",
+    "shadow"
+  ],
+  "petPoses": [
+    "idle",
+    "walk-a",
+    "walk-b",
+    "hurt"
+  ],
+  "enemy": "coal-cub",
+  "enemyPoses": [
+    "idle",
+    "hop-a",
+    "hop-b",
+    "hurt"
+  ]
+}

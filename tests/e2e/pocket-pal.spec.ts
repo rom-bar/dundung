@@ -496,7 +496,12 @@ test('Home upgrades, achievements, records and Kitchen meals work on every devic
   for (let index = 0; index < 4; index += 1) await packItems.nth(index).check();
   await expect(packItems.nth(4)).toBeDisabled();
   await dungeon.getByTestId('dungeon-start').click();
-  await expect(dungeon.locator('.run-modifiers')).toContainText('HP ×1.14');
+  await expect(dungeon).toBeHidden();
+  await expect(page.getByTestId('stage-decision')).toBeVisible();
+  await expect(page.locator('#stage-run-meta')).toBeVisible();
+  await expect(page.locator('#stage-run-summary')).toContainText('F1');
+  await page.getByTestId('stage-actions-run').getByRole('button', { name: 'Open run pack' }).click();
+  await expect(page.locator('#stage-tab-pack')).toContainText('Run coins');
 });
 
 test('Endless daily, ascension, modifiers and local ghost battles work on every device', async ({ page }) => {
@@ -557,12 +562,11 @@ test('Endless daily, ascension, modifiers and local ghost battles work on every 
   await expect(dungeon.getByTestId('daily-mode')).toHaveAttribute('aria-pressed', 'true');
   await expect(dungeon.getByTestId('dungeon-start')).toHaveText('Start today’s trial');
   await dungeon.getByTestId('dungeon-start').click();
-  const runModifiers = dungeon.locator('.run-modifiers');
-  await expect(runModifiers).toContainText('Daily trial');
-  await expect(runModifiers).not.toContainText('Ironhide');
-  await expect(runModifiers).not.toContainText('Quickstep');
-  await expect(runModifiers).not.toContainText('Hardbite');
-  await dungeon.getByRole('button', { name: 'Close dungeon' }).click();
+  await expect(dungeon).toBeHidden();
+  await expect(page.getByTestId('stage-decision')).toBeVisible();
+  const dailyRun = await page.evaluate(() => window.__game?.getState()?.dungeon.activeRun);
+  expect(dailyRun?.mode).toBe('daily');
+  expect(dailyRun?.modifierIds).toEqual([]);
   await page.getByTestId('home-open').click();
   await home.getByRole('tab', { name: 'Endless' }).click();
   await expect(home.getByTestId('open-daily-trial')).toBeDisabled();
@@ -594,15 +598,16 @@ test('the traveling shop sells gear into the run bag without enabling loadout ch
 test('the dungeon shows take, scrap and leave choices for a gear drop, then carries a taken item', async ({ page }) => {
   await installDungeonFixture(page, 'loot');
   await openFreshGame(page);
-  await page.getByTestId('dungeon-open').click();
-  const dungeon = page.getByRole('dialog', { name: 'The Endless Descent' });
-  await expect(dungeon.getByRole('heading', { name: 'Rare gear from the path' })).toBeVisible();
-  await expect(dungeon.getByRole('button', { name: 'Take gear' })).toBeEnabled();
-  await expect(dungeon.locator('[data-run-action="scrap-drop"]')).toBeEnabled();
-  await expect(dungeon.getByRole('button', { name: 'Leave it' })).toBeEnabled();
-  await dungeon.getByRole('button', { name: 'Take gear' }).click();
-  await expect(dungeon.locator('.run-ledger span').nth(1).locator('strong')).toHaveText('1');
-  await expect(dungeon.locator('.run-ledger')).toContainText('Run gear');
+  const decision = page.getByTestId('stage-decision');
+  await expect(decision).toBeVisible();
+  await expect(decision).toContainText('Emberfang Pick');
+  await expect(decision.getByRole('button', { name: 'Take gear' })).toBeEnabled();
+  await expect(decision.locator('[data-run-action="scrap-drop"]')).toBeEnabled();
+  await expect(decision.getByRole('button', { name: 'Leave' })).toBeEnabled();
+  await decision.getByRole('button', { name: 'Take gear' }).click();
+  await expect.poll(() => page.evaluate(() => window.__game?.getState()?.dungeon.activeRun?.pendingItems.length ?? 0)).toBe(1);
+  await page.getByTestId('stage-actions-run').getByRole('button', { name: 'Open run pack' }).click();
+  await expect(page.locator('#stage-tab-pack .stage-ledger')).toContainText('Bagged gear');
 });
 
 test('Dungeon run opens on desktop and mobile, enforces the three-slot pack, and resolves a fight', async ({ page }) => {
@@ -645,21 +650,21 @@ test('Dungeon run opens on desktop and mobile, enforces the three-slot pack, and
   await expect(dialog.locator('#pack-count')).toHaveText('3 / 3');
   await expect(packItems.nth(3)).toBeDisabled();
   await dialog.getByTestId('dungeon-start').click();
+  await expect(dialog).toBeHidden();
   await expect(page.locator('#stage-location')).toHaveText('CINDER COPSE');
   await expect(page.getByTestId('stage-actions-run')).toBeVisible();
   await expect(page.getByTestId('stage-actions-home')).toBeHidden();
-  await expect(dialog.locator('[data-testid^="room-"]')).toHaveCount(3);
-  await dialog.getByTestId('room-fight').click();
-  await expect(dialog.getByTestId('tactic-all-in')).toBeVisible();
-  await dialog.getByTestId('tactic-all-in').click();
-  await expect(dialog.getByTestId('dungeon-fight')).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId('stage-decision').locator('[data-testid^="room-"]')).toHaveCount(3);
+  await page.getByTestId('room-fight').click();
+  await expect(page.getByTestId('tactic-all-in')).toBeVisible();
+  await page.getByTestId('tactic-all-in').click();
+  await expect.poll(() => page.evaluate(() => window.__game?.getState()?.dungeon.activeRun?.phase)).toBe('combat');
   await expect(page.locator('#stage-location')).toHaveText('BATTLE', { timeout: 5_000 });
   await expect(page.locator('#stage-hp-status')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__game?.getEventLog().some((event) => event.type === 'attack') ?? false), { timeout: 5_000 }).toBe(true);
-  await expect(dialog.locator('[data-testid^="room-"]')).toHaveCount(3, { timeout: 8_000 });
-  await expect(dialog.locator('.dungeon-path .is-cleared')).toHaveCount(1);
-  expect(Number(await dialog.locator('.run-ledger span').first().locator('strong').textContent())).toBeGreaterThan(0);
-  await expect(dialog.locator('.run-ledger')).toContainText('Run coins');
+  await expect(page.getByTestId('stage-decision').locator('[data-testid^="room-"]')).toHaveCount(3, { timeout: 8_000 });
+  await page.getByTestId('stage-actions-run').getByRole('button', { name: 'Open run pack' }).click();
+  await expect(page.locator('#stage-tab-pack .stage-ledger')).toContainText('Run coins');
 });
 
 test('memory mini-game awards a score and applies capped training to the selected stat', async ({ page }, testInfo) => {
@@ -746,8 +751,13 @@ test('haptics stay off by default and vibrate once when enabled for touch', asyn
 
 test('mini mode keeps the worker active while the main page is hidden and pauses when PiP closes', async ({ page }) => {
   await page.addInitScript(() => {
-    const browserWindow = window as Window & { __pocketTicks?: number; documentPictureInPicture?: unknown };
+    const browserWindow = window as Window & { __pocketTicks?: number; __requestedCaptureFPS?: number; documentPictureInPicture?: unknown };
     browserWindow.__pocketTicks = 0;
+    const captureStream = HTMLCanvasElement.prototype.captureStream;
+    HTMLCanvasElement.prototype.captureStream = function (frameRate?: number) {
+      browserWindow.__requestedCaptureFPS = frameRate;
+      return captureStream.call(this, frameRate);
+    };
     const postMessage = Worker.prototype.postMessage;
     Worker.prototype.postMessage = function (message: any, ...options: any[]) {
       const loadMessage = message as { type?: string; state?: Record<string, any> };
@@ -781,7 +791,7 @@ test('mini mode keeps the worker active while the main page is hidden and pauses
   await openFreshGame(page);
   await page.getByTestId('dungeon-open').click();
   await page.getByTestId('dungeon-start').click();
-  await page.getByRole('button', { name: 'Close dungeon' }).click();
+  await expect(page.getByRole('dialog', { name: 'The Endless Descent' })).toBeHidden();
   const popupPromise = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Open mini mode' }).click();
   const mini = await popupPromise;
@@ -793,6 +803,7 @@ test('mini mode keeps the worker active while the main page is hidden and pauses
       tagName: video.tagName,
       hasStream: Boolean(video.srcObject),
       liveVideoTracks: video.srcObject ? (video.srcObject as MediaStream).getVideoTracks().filter((track) => track.readyState === 'live').length : 0,
+      frameRate: video.srcObject ? ((video.srcObject as MediaStream).getVideoTracks()[0]?.getSettings().frameRate ?? null) : null,
       width: rect.width,
       height: rect.height,
     };
@@ -800,6 +811,8 @@ test('mini mode keeps the worker active while the main page is hidden and pauses
   expect(scene.tagName).toBe('VIDEO');
   expect(scene.hasStream).toBe(true);
   expect(scene.liveVideoTracks).toBeGreaterThan(0);
+  expect(await page.evaluate(() => (window as Window & { __requestedCaptureFPS?: number }).__requestedCaptureFPS)).toBe(60);
+  expect(scene.frameRate === null || scene.frameRate >= 30).toBe(true);
   expect(scene.width).toBeGreaterThan(0);
   expect(scene.height).toBeGreaterThan(70);
   const miniBounds = await mini.evaluate(() => ({
@@ -838,8 +851,20 @@ test('mini mode keeps the worker active while the main page is hidden and pauses
 
 test('mini mode falls back to video PiP and hides cleanly when neither PiP API exists', async ({ page }) => {
   await page.addInitScript(() => {
+    const browserWindow = window as Window & { __pocketTicks?: number; __requestedCaptureFPS?: number };
+    browserWindow.__pocketTicks = 0;
     Object.defineProperty(window, 'documentPictureInPicture', { configurable: true, value: undefined });
-    HTMLCanvasElement.prototype.captureStream = () => new MediaStream();
+    HTMLCanvasElement.prototype.captureStream = (frameRate?: number) => {
+      browserWindow.__requestedCaptureFPS = frameRate;
+      return new MediaStream();
+    };
+    const postMessage = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message: any, ...options: any[]) {
+      if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'tick') {
+        browserWindow.__pocketTicks = (browserWindow.__pocketTicks ?? 0) + 1;
+      }
+      return postMessage.call(this, message, ...options);
+    };
     HTMLMediaElement.prototype.play = () => Promise.resolve();
     HTMLVideoElement.prototype.requestPictureInPicture = async function () {
       Object.defineProperty(document, 'pictureInPictureElement', { configurable: true, value: this });
@@ -851,6 +876,12 @@ test('mini mode falls back to video PiP and hides cleanly when neither PiP API e
   await expect(miniButton).toBeVisible();
   await miniButton.click();
   await expect(miniButton).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => (window as Window & { __requestedCaptureFPS?: number }).__requestedCaptureFPS)).toBe(60);
+  const ticksAtOpen = await page.evaluate(() => (window as Window & { __pocketTicks?: number }).__pocketTicks ?? 0);
+  await page.waitForTimeout(700);
+  const fallbackTicks = (await page.evaluate(() => (window as Window & { __pocketTicks?: number }).__pocketTicks ?? 0)) - ticksAtOpen;
+  expect(fallbackTicks).toBeGreaterThanOrEqual(12);
+  expect(fallbackTicks).toBeLessThanOrEqual(28);
   const video = page.locator('video[aria-hidden="true"]');
   await expect(video).toBeAttached();
   await video.dispatchEvent('leavepictureinpicture');

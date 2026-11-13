@@ -1,0 +1,108 @@
+{
+  "frameWidth": 48,
+  "frameHeight": 48,
+  "sheets": {
+    "rabbit-fire": {
+      "file": "rabbit-fire.png",
+      "frameCount": 4,
+      "frameOrder": [
+        "idle",
+        "walk-a",
+        "walk-b",
+        "hurt"
+      ],
+      "sha256": "7bca65e8d011aa0917f5824be7fbbbdfef6537c17a51f1ce76a2640b4bbd75e8",
+      "sourceSha256": {
+        "idle": "a3b9929ec9111bae6c3821f06628a069e4048fa06ab6f9ce3f44db39206182e6",
+        "walk-a": "c29c3c51278659471f375d167eb17e370d8ef097d73dafcf9998d7360df3f0f9",
+        "walk-b": "28384681d2879fa5b313dcf1c4a36102de397b5b97070e0977fb67dd4f023e89",
+        "hurt": "540b4ffb2e5bb62814ff55ceb3b99ab5fbd307ea5cb49ebc53e8f4b95dd2a264"
+      }
+    },
+    "rabbit-water": {
+      "file": "rabbit-water.png",
+      "frameCount": 4,
+      "frameOrder": [
+        "idle",
+        "walk-a",
+        "walk-b",
+        "hurt"
+      ],
+      "sha256": "51bd7b4ccc69f43e61bc2ef74e9f1924ed03d2d1f05d252587facbbd50237b78",
+      "sourceSha256": {
+        "idle": "1be587f76749b88f74d5247008b7233de726608c2a462ed46d6ab53c49d24874",
+        "walk-a": "b3ea07c5dda7a6029d319d4b236503721a84a3d8e4f0694f473edf4db674730b",
+        "walk-b": "4b127a54f2060253b1034837e171ec26a62b8fe283a7d46670581570e239e1c5",
+        "hurt": "67fc5ce77c528e87ae06d75f8b663b17c91dc3b904b39b294ee2f06adcb3f6f7"
+      }
+    },
+    "rabbit-moss": {
+      "file": "rabbit-moss.png",
+      "frameCount": 4,
+      "frameOrder": [
+        "idle",
+        "walk-a",
+        "walk-b",
+        "hurt"
+      ],
+      "sha256": "db48455ea515a2c340c04acfbeb6a00f0b9e40a3a6daa60647678d9c5297f329",
+      "sourceSha256": {
+        "idle": "b314eb5f9a47b085b440c1180a03f0e256ab397ab81b741cdc4a3b52f219a361",
+        "walk-a": "3274eb49237e25a724bbf6f4c5f1ec4979fa511959cc98d6082da7c9ed0a76cd",
+        "walk-b": "20eba08c3dd789da46b136fdee35d1079300719a14b79e68506cc83d692f4be9",
+        "hurt": "edc546d6b1b435ae988c9d2060664a8ac989b24996acc32f817a0e1667d8c5b2"
+      }
+    },
+    "rabbit-storm": {
+      "file": "rabbit-storm.png",
+      "frameCount": 4,
+      "frameOrder": [
+        "idle",
+        "walk-a",
+        "walk-b",
+        "hurt"
+      ],
+      "sha256": "8d5e3013f76241dd7d48b054d4d1ad21ca12a3f45edecba25cfe87491ac3188b",
+      "sourceSha256": {
+        "idle": "43d0ad317ec85f6f98618cff68543b7e5f93ff6966ba9cb6f6e4eeb56c9f3744",
+        "walk-a": "52a3b43ce751f5ad75d3a9bf3924d3dfac65fce05f3f2ad0296f5b3c3eb84177",
+        "walk-b": "7d8c5e56aa558e73937097579727eb00c65567d39d00b74403cedb35a0533ab0",
+        "hurt": "81df7034899d602ff836a87ca9e909f053ade032c0716ce63e9b012acb302385"
+      }
+    },
+    "rabbit-shadow": {
+      "file": "rabbit-shadow.png",
+      "frameCount": 4,
+      "frameOrder": [
+        "idle",
+        "walk-a",
+        "walk-b",
+        "hurt"
+      ],
+      "sha256": "aec4acbdb9a7bf88b0146566dabe832e7054311de9e63e404f24a96d0d893dff",
+      "sourceSha256": {
+        "idle": "f91f8c93b22e896681365d95989f5f35a6c8e947fffdc1cb236e824b19fbe3ca",
+        "walk-a": "6e0be0673a8b7dbcd65abf9dc2f8ca778dd1debe5f4097375e4875e279c75ba5",
+        "walk-b": "efb3b62d9aa6fd90008ca1e05b6e681809b84f1ed62a89349d5b1d3c994948f7",
+        "hurt": "90c736172f6536019e338ebf4bca28a26c52b294bffaafe76093090e4969b0d4"
+      }
+    },
+    "coal-cub": {
+      "file": "coal-cub.png",
+      "frameCount": 4,
+      "frameOrder": [
+        "idle",
+        "hop-a",
+        "hop-b",
+        "hurt"
+      ],
+      "sha256": "ecf549b74a2a9685f427e5a5541b2d8f18ccb40a60f3388223b1deb2d93064bc",
+      "sourceSha256": {
+        "idle": "0b30046900e37ff8459c05c0377aa890f6df2f1f3310d405e3ca9cc7fbf66106",
+        "hop-a": "0ad919498b796c2606907373b24cdc962e41e4421d783dfa42eec28576bd8347",
+        "hop-b": "f19250200420814140414371ddc189169d5d7d4fc74e1071a7e421cb21e604fa",
+        "hurt": "86b86510db001eb4147fbfeba8a3b0a7788d28598e87ad440b7efab1f9ecb322"
+      }
+    }
+  }
+}

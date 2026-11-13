@@ -9,6 +9,8 @@ const needLabels: Record<NeedKey, string> = {
   hygiene: 'Freshness',
 };
 const needKeys: NeedKey[] = ['hunger', 'happiness', 'energy', 'hygiene'];
+const CANVAS_STREAM_FPS = 60;
+const VIDEO_SIMULATION_STEP_MS = 1000 / 30;
 
 type PipWindow = Window & { documentPictureInPicture?: DocumentPipApi };
 type DocumentPipApi = EventTarget & {
@@ -50,6 +52,7 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
   let message = 'Care stays close while you switch apps.';
   let disposed = false;
   let documentUsesStream = false;
+  let videoTickElapsed = 0;
 
   const documentPip = (window as PipWindow).documentPictureInPicture;
   const canCaptureStream = typeof HTMLCanvasElement.prototype.captureStream === 'function';
@@ -70,7 +73,7 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
           documentUsesStream = canCaptureStream;
           buildDocumentWindow(pipWindow, documentUsesStream);
           if (documentUsesStream) {
-            stream = options.canvas.captureStream(30);
+            stream = options.canvas.captureStream(CANVAS_STREAM_FPS);
             const sceneVideo = pipWindow.document.querySelector<VideoPipElement>('#mini-scene');
             if (!sceneVideo || !stream) throw new Error('Mini scene stream could not be attached.');
             sceneVideo.autoplay = true;
@@ -258,7 +261,7 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
       video.setAttribute('aria-hidden', 'true');
       video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
       document.body.append(video);
-      stream = options.canvas.captureStream(30);
+      stream = options.canvas.captureStream(CANVAS_STREAM_FPS);
       video.srcObject = stream;
       await video.play();
       await video.requestPictureInPicture?.();
@@ -268,7 +271,8 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
       video.addEventListener('leavepictureinpicture', handleClosed, { once: true });
       configureMediaActions();
       previousFrame = 0;
-      videoTimer = window.setInterval(videoFrame, 1000 / 30);
+      videoTickElapsed = 0;
+      videoTimer = window.setInterval(videoFrame, 1000 / CANVAS_STREAM_FPS);
       return true;
     } catch {
       clearVideoLoop();
@@ -294,12 +298,20 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
     const dt = previousFrame ? Math.min(time - previousFrame, 100) : 0;
     previousFrame = time;
     options.onStageFrame?.(time, dt);
-    if (dt > 0) options.onTick(dt);
+    if (dt > 0) {
+      videoTickElapsed += dt;
+      if (videoTickElapsed >= VIDEO_SIMULATION_STEP_MS) {
+        options.onTick(videoTickElapsed);
+        videoTickElapsed = 0;
+      }
+    }
   }
 
   function clearVideoLoop(): void {
     if (videoTimer) window.clearInterval(videoTimer);
     videoTimer = 0;
+    videoTickElapsed = 0;
+    previousFrame = 0;
   }
 
   function cleanupMedia(): void {

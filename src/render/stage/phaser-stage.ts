@@ -21,6 +21,11 @@ type NativeStageMetrics = {
   petWidth: number;
   petSpriteHeight: number;
   petFrameName: string;
+  petX: number;
+  petY: number;
+  petScaleX: number;
+  petScaleY: number;
+  shadowY: number;
 };
 
 export type StageRendererStatus = {
@@ -102,6 +107,10 @@ export class PhaserStageAdapter {
     this.game.step?.(stepTime, previousStepTime ? stepTime - previousStepTime : 16.67);
   }
 
+  resetClock(): void {
+    this.lastStepTime = 0;
+  }
+
   setPreviewState(name: NativeStagePreviewName | null, progress = 0.5, frozen = true): void {
     this.previewName = name;
     this.previewProgress = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0.5));
@@ -115,7 +124,7 @@ export class PhaserStageAdapter {
 
   clear(): void {
     if (!this.phaserReady) this.renderer.clear(this.canvas);
-    this.lastStepTime = 0;
+    this.resetClock();
   }
 
   dispose(): void {

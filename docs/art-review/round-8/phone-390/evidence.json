@@ -1,0 +1,38 @@
+{
+  "round": "8",
+  "project": "phone-390",
+  "states": [
+    "corridor",
+    "intro",
+    "attack",
+    "crit",
+    "chest",
+    "home",
+    "eating"
+  ],
+  "attackFrames": 8,
+  "attackProgress": [
+    0,
+    0.16,
+    0.3,
+    0.45,
+    0.48,
+    0.52,
+    0.72,
+    1
+  ],
+  "layout": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "stage": {
+      "width": 364,
+      "height": 371.671875
+    },
+    "scrollWidth": 390,
+    "scrollHeight": 844,
+    "seed": 1
+  },
+  "errors": []
+}

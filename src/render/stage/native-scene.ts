@@ -13,7 +13,6 @@ type Rectangle = PhaserType.GameObjects.Rectangle;
 type TileSprite = PhaserType.GameObjects.TileSprite;
 type PreviewName = 'corridor' | 'intro' | 'attack' | 'crit' | 'chest' | 'home' | 'eating';
 type Attack = Extract<StageVisualEvent, { type: 'attack' }>;
-type AnimationKey = keyof typeof spriteData.animations;
 
 export interface NativeStageBridge {
   getState(): GameState | null;
@@ -28,7 +27,7 @@ export interface NativeStageScene extends PhaserType.Scene {
   create(): void;
   setPreviewState(name: PreviewName | null, progress?: number, frozen?: boolean): void;
   resizeStage(width: number, height: number): void;
-  getMetrics(): { petHeight: number; stageHeight: number; activeParticleCount: number; petWidth: number; petSpriteHeight: number; petFrameName: string };
+  getMetrics(): { petHeight: number; stageHeight: number; activeParticleCount: number; petWidth: number; petSpriteHeight: number; petFrameName: string; petX: number; petY: number; petScaleX: number; petScaleY: number; shadowY: number };
 }
 
 export const NATIVE_STAGE_WIDTH = 240;
@@ -36,6 +35,10 @@ export const NATIVE_STAGE_HEIGHT = 160;
 export const NATIVE_STAGE_ATLAS_KEY = 'pocket-pal-stage-atlas';
 const MAX_PARTICLES = 40;
 const BASE_PATH = `${import.meta.env.BASE_URL}assets/stage/`;
+const CHARACTER_FRAME_SIZE = 48;
+const CHARACTER_POSES = ['idle', 'walk-a', 'walk-b', 'hurt'] as const;
+const COAL_CUB_TEXTURE = 'pocket-pal-coal-cub';
+const snapPixel = (value: number): number => Math.round(value);
 const F = {
   grass: 'biome1.ground.grass', detail: 'biome1.ground.grass-detail', flower: 'biome1.ground.flower',
   young: 'biome1.tree.young', round: 'biome1.tree.round', tall: 'biome1.tree.tall', canopy: 'biome1.canopy.soft',
@@ -43,9 +46,9 @@ const F = {
   pet: 'pet1.rabbit.idle', egg: 'pet1.egg', slime: 'enemy1.slime.idle', torch: 'dungeon.torch', path: 'dungeon.path',
   sparkle: 'particle.sparkle-1', heart: 'icon.heart',
 } as const;
-const petPaletteFrames: Record<string, string> = {
-  fire: 'pet1.rabbit.fire', water: 'pet1.rabbit.water', moss: 'pet1.rabbit.moss',
-  storm: 'pet1.rabbit.storm', shadow: 'pet1.rabbit.shadow',
+const petPaletteTextures: Record<string, string> = {
+  fire: 'pocket-pal-rabbit-fire', water: 'pocket-pal-rabbit-water', moss: 'pocket-pal-rabbit-moss',
+  storm: 'pocket-pal-rabbit-storm', shadow: 'pocket-pal-rabbit-shadow',
 };
 const enemyPaletteFrames: Record<string, string> = {
   fire: 'enemy1.slime.fire', water: 'enemy1.slime.water', moss: 'enemy1.slime.moss',
@@ -68,6 +71,7 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
     private readonly middle: Image[] = [];
     private readonly edge: Image[] = [];
     private readonly flowers: Image[] = [];
+    private readonly homeGroundDetails: Image[] = [];
     private readonly torches: Image[] = [];
     private readonly particles: Image[] = [];
     private readonly born = new Float64Array(MAX_PARTICLES);
@@ -82,7 +86,7 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
     private status!: Text;
     private banner!: Text;
     private dim!: Rectangle;
-    private readonly pose: AttackPose = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+    private readonly pose: AttackPose = { x: 0, y: 0 };
     private readonly rng = createCosmeticRng(cosmeticSeed(1, 1));
     private preview: PreviewName | null = null;
     private previewProgress = 0.5;
@@ -109,6 +113,14 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
 
     preload(): void {
       this.load.atlas(NATIVE_STAGE_ATLAS_KEY, `${BASE_PATH}atlas.png`, `${BASE_PATH}atlas.json`);
+      for (const [element, key] of Object.entries(petPaletteTextures)) {
+        this.load.spritesheet(key, `${BASE_PATH}characters/rabbit-${element}.png`, {
+          frameWidth: CHARACTER_FRAME_SIZE, frameHeight: CHARACTER_FRAME_SIZE,
+        });
+      }
+      this.load.spritesheet(COAL_CUB_TEXTURE, `${BASE_PATH}characters/coal-cub.png`, {
+        frameWidth: CHARACTER_FRAME_SIZE, frameHeight: CHARACTER_FRAME_SIZE,
+      });
     }
 
     create(): void {
@@ -131,9 +143,10 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
       }
       for (let i = 0; i < 4; i += 1) this.edge.push(this.add.image(0, 140, NATIVE_STAGE_ATLAS_KEY, i % 2 ? F.tall : F.round).setScale(i % 2 ? 3 : 2).setAlpha(0.88).setDepth(17));
       for (let i = 0; i < 16; i += 1) this.flowers.push(this.add.image(0, 146, NATIVE_STAGE_ATLAS_KEY, i % 3 ? F.detail : F.flower).setDepth(4));
+      for (let i = 0; i < 3; i += 1) this.homeGroundDetails.push(this.add.image(100 + i * 20, 145, NATIVE_STAGE_ATLAS_KEY, F.detail).setDepth(7).setVisible(false));
       for (let i = 0; i < 2; i += 1) this.torches.push(this.add.image(0, 104, NATIVE_STAGE_ATLAS_KEY, F.torch).setScale(2).setDepth(5));
-      this.petShadow = this.add.ellipse(70, 139, 30, 6, 0x213e34, 0.22).setDepth(6);
-      this.enemyShadow = this.add.ellipse(170, 134, 32, 6, 0x213e34, 0.22).setDepth(6);
+      this.petShadow = this.add.ellipse(70, 142, 30, 6, 0x213e34, 0.3).setDepth(6);
+      this.enemyShadow = this.add.ellipse(170, 138, 32, 6, 0x213e34, 0.28).setDepth(6);
       this.chest = this.add.sprite(175, 121, NATIVE_STAGE_ATLAS_KEY, F.chest).setScale(2).setDepth(7).setVisible(false);
       this.enemy = this.add.sprite(170, 113, NATIVE_STAGE_ATLAS_KEY, F.slime).setDepth(9);
       this.pet = this.add.sprite(70, 116, NATIVE_STAGE_ATLAS_KEY, F.pet).setDepth(10);
@@ -148,7 +161,7 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
       this.status = this.add.text(70, 80, '', { ...textStyle, color: '#b9f0d0' }).setOrigin(0.5).setDepth(22).setVisible(false);
       this.banner = this.add.text(120, 26, '', { ...textStyle, fontSize: '14px', color: '#fff2c9', backgroundColor: '#294b40', padding: { x: 7, y: 4 } }).setOrigin(0.5).setDepth(25).setVisible(false);
       this.dim = this.add.rectangle(120, 80, 600, 300, 0x142b2b, 0.46).setDepth(30).setVisible(false);
-      for (let i = 0; i < MAX_PARTICLES; i += 1) this.particles.push(this.add.image(0, 0, NATIVE_STAGE_ATLAS_KEY, F.sparkle).setScale(0.25).setDepth(20).setVisible(false));
+      for (let i = 0; i < MAX_PARTICLES; i += 1) this.particles.push(this.add.image(0, 0, NATIVE_STAGE_ATLAS_KEY, F.sparkle).setScale(0.5).setDepth(20).setVisible(false));
       this.ready = true;
       this.cameras.main.setBackgroundColor('#a6ccba');
       this.resizeStage(this.game.canvas.width, this.game.canvas.height);
@@ -182,13 +195,19 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
       this.cameras.main.fadeEffect.reset();
     }
 
-    getMetrics(): { petHeight: number; stageHeight: number; activeParticleCount: number; petWidth: number; petSpriteHeight: number; petFrameName: string } {
+    getMetrics(): { petHeight: number; stageHeight: number; activeParticleCount: number; petWidth: number; petSpriteHeight: number; petFrameName: string; petX: number; petY: number; petScaleX: number; petScaleY: number; shadowY: number } {
       let activeParticleCount = 0;
       for (const particle of this.particles) if (particle.visible) activeParticleCount += 1;
+      const textureKey = this.pet.texture.key;
+      const poseIndex = Number(this.pet.frame.name);
+      const element = textureKey.startsWith('pocket-pal-rabbit-') ? textureKey.slice('pocket-pal-rabbit-'.length) : '';
+      const pose = CHARACTER_POSES[poseIndex] ?? 'idle';
+      const petFrameName = element ? (pose === 'idle' ? `pet1.rabbit.${element}` : `pet1.rabbit.${element}.${pose}`) : String(this.pet.frame.name);
       return {
         petHeight: this.pet.displayHeight * this.zoom, stageHeight: this.height, activeParticleCount,
         petWidth: this.pet.displayWidth * this.zoom, petSpriteHeight: this.pet.displayHeight * this.zoom,
-        petFrameName: this.pet.frame.name,
+        petFrameName, petX: this.pet.x, petY: this.pet.y,
+        petScaleX: this.pet.scaleX, petScaleY: this.pet.scaleY, shadowY: this.petShadow.y,
       };
     }
 
@@ -220,40 +239,38 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
 
     private updateWorld(walking: boolean, home: boolean, reduced: boolean, dt: number): void {
       if (walking && !reduced) this.travel += dt * 0.024;
-      const farShift = this.travel * 0.18;
-      const midShift = this.travel * 0.45;
+      const farShift = snapPixel(this.travel * 0.18);
+      const midShift = snapPixel(this.travel * 0.45);
       const farOffsets = [-8, 3, 9, -4, 6, -2, 10, -6] as const;
       const midOffsets = [4, -7, 1, 8, -5, 9, -2, -6] as const;
       for (let i = 0; i < this.far.length; i += 1) {
         const far = this.far[i]!;
         const middle = this.middle[i]!;
         const pattern = i % farOffsets.length;
-        far.setPosition(this.left - 40 + i * 44 + farOffsets[pattern]! - farShift % 44, 79 - far.displayHeight / 2 + pattern % 3 * 2);
-        middle.setPosition(this.left - 40 + i * 36 + midOffsets[pattern]! - midShift % 36, 105 - middle.displayHeight / 2 + pattern % 2 * 3);
+        far.setPosition(snapPixel(this.left - 40 + i * 44 + farOffsets[pattern]! - farShift % 44), snapPixel(79 - far.displayHeight / 2 + pattern % 3 * 2));
+        middle.setPosition(snapPixel(this.left - 40 + i * 36 + midOffsets[pattern]! - midShift % 36), snapPixel(105 - middle.displayHeight / 2 + pattern % 2 * 3));
       }
-      this.ground.tilePositionX = walking ? this.travel : 0;
-      this.path.tilePositionX = walking ? this.travel : 0;
+      this.ground.tilePositionX = walking ? snapPixel(this.travel) : 0;
+      this.path.tilePositionX = walking ? snapPixel(this.travel) : 0;
       this.path.setVisible(!home);
-      for (let i = 0; i < this.flowers.length; i += 1) this.flowers[i]!.setPosition(this.left - 12 + i * 54, 147 + i % 3 * 5);
-      this.edge[0]!.setPosition(this.left - 12, 122);
-      this.edge[1]!.setPosition(this.left - 4, 151);
-      this.edge[2]!.setPosition(this.left + this.worldWidth + 12, 122);
-      this.edge[3]!.setPosition(this.left + this.worldWidth + 4, 151);
-      for (let i = 0; i < 2; i += 1) this.torches[i]!.setVisible(!home).setPosition(i ? this.left + this.worldWidth - 28 : this.left + 28, 111).setAlpha(reduced ? 1 : 0.9 + Math.sin(this.visualTime * 7 + i) * 0.08);
+      for (let i = 0; i < this.flowers.length; i += 1) {
+        const sway = home && !reduced && i % 4 === 0 ? snapPixel(Math.sin(this.visualTime * 1.1 + i) * 0.5) : 0;
+        this.flowers[i]!.setPosition(snapPixel(this.left - 12 + i * 54), snapPixel(147 + i % 3 * 5 + sway));
+      }
+      for (let i = 0; i < this.homeGroundDetails.length; i += 1) {
+        const detail = this.homeGroundDetails[i]!;
+        const sway = home && !reduced ? snapPixel(Math.sin(this.visualTime * 0.9 + i * 1.7) * 0.5) : 0;
+        detail.setVisible(home).setPosition(snapPixel(100 + i * 20), snapPixel(145 + sway));
+      }
+      this.edge[0]!.setPosition(snapPixel(this.left - 12), 122);
+      this.edge[1]!.setPosition(snapPixel(this.left - 4), 151);
+      this.edge[2]!.setPosition(snapPixel(this.left + this.worldWidth + 12), 122);
+      this.edge[3]!.setPosition(snapPixel(this.left + this.worldWidth + 4), 151);
+      for (let i = 0; i < 2; i += 1) this.torches[i]!.setVisible(!home).setPosition(snapPixel(i ? this.left + this.worldWidth - 28 : this.left + 28), 111).setAlpha(reduced ? 1 : 0.9 + Math.sin(this.visualTime * 7 + i) * 0.08);
       if (walking && !reduced && this.elapsed - this.lastDust > 260) {
         this.lastDust = this.elapsed;
         this.burst(3, this.pet.x - 8, 139, 0xd9d1aa, false);
       }
-    }
-
-    private play(sprite: Sprite, key: AnimationKey, progress: number): void {
-      if (sprite.anims.currentAnim?.key !== key) sprite.play(key);
-      if (this.preview && this.previewFrozen) {
-        sprite.anims.pause();
-        const frames = spriteData.animations[key].frames;
-        sprite.setFrame(frames[Math.min(frames.length - 1, Math.floor(progress * frames.length))]!);
-      } else if (this.frozen || bridge.isReducedMotion()) sprite.anims.pause();
-      else sprite.anims.resume();
     }
 
     private updatePet(state: GameState, event: StageVisualEvent | null, p: number, home: boolean, walking: boolean, reduced: boolean): void {
@@ -262,40 +279,36 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
       const hurt = hit?.target === 'pet';
       const eating = is(event, 'item_used') || this.preview === 'eating' || (home && state.animation === 'eat');
       const faint = is(event, 'faint');
-      const scale = Math.max(2, Math.ceil(this.worldHeight * 0.28 / 16));
       let x = home ? 120 : 70;
       let y = 116;
-      let sx = 1;
-      let sy = 1;
+      if (home && !reduced) x += snapPixel(Math.sin(this.visualTime * 0.55) * 10);
       if (attacking && !reduced) {
         writeAttackPose(p, this.pose);
         x += this.pose.x;
         y += this.pose.y;
-        sx = this.pose.scaleX;
-        sy = this.pose.scaleY;
       } else if (!reduced) {
-        const breath = Math.sin(this.visualTime * 2.5) * 0.018;
-        sx = 1 + breath;
-        sy = 1 - breath;
         if (walking) y -= Math.abs(Math.sin(this.visualTime * 8)) * 2;
         if (hurt && p >= IMPACT_START) x -= Math.sin(clamp((p - IMPACT_START) / 0.54) * Math.PI) * 9;
-        if (eating && p > 0.4) sy += Math.sin(p * 35) * 0.035;
+        if (eating && p > 0.4) y += Math.sin(p * 35) * 0.45;
       }
-      if (faint) { y += easeOut(p) * 8; sy *= 1 - p * 0.45; }
-      this.pet.setPosition(x, y).setScale(scale * sx, scale * sy).setRotation(faint ? p * 0.2 : 0).setAlpha(faint ? 1 - p * 0.35 : 1).setFlipX(false);
-      const pose: AnimationKey = faint ? 'pet1.faint' : eating ? 'pet1.eat' : hurt ? 'pet1.hurt' : attacking ? 'pet1.attack' : walking ? 'pet1.walk' : state.sleeping ? 'pet1.sleep' : 'pet1.idle';
+      if (faint) y += easeOut(p) * 8;
       const petElement = state.evolution.formId?.split('-')[0] ?? 'moss';
-      const petPaletteFrame = petPaletteFrames[petElement] ?? F.pet;
       if (!this.preview && state.stage === 'egg') {
         if (this.pet.frame.name !== F.egg) this.pet.anims.stop();
-        this.pet.setFrame(F.egg).setScale(Math.max(2, scale - 1));
+        this.pet.setTexture(NATIVE_STAGE_ATLAS_KEY, F.egg).setScale(2);
       } else {
-        const wasEgg = this.pet.frame.name === F.egg;
-        this.play(this.pet, pose, p);
-        if (hurt && !reduced && p >= IMPACT_START && p <= IMPACT_END + 0.07) this.pet.setFrame('pet1.rabbit.hit-flash');
-        else if (wasEgg || this.pet.frame.name === 'pet1.rabbit.hit-flash' || this.pet.frame.name !== petPaletteFrame) this.pet.setFrame(petPaletteFrame);
+        const movingAtHome = home && !reduced && Math.abs(Math.cos(this.visualTime * 0.55)) > 0.35;
+        let poseIndex = 0;
+        if (hurt && !reduced && p >= IMPACT_START && p <= IMPACT_END + 0.07) poseIndex = 3;
+        else if (attacking && !reduced) poseIndex = p < IMPACT_START ? 1 : 2;
+        else if ((walking || movingAtHome) && !reduced) poseIndex = 1 + Math.floor(this.visualTime * 5) % 2;
+        const texture = petPaletteTextures[petElement] ?? petPaletteTextures.moss!;
+        if (this.pet.texture.key !== texture || Number(this.pet.frame.name) !== poseIndex) this.pet.setTexture(texture, poseIndex);
+        this.pet.setScale(1);
       }
-      this.petShadow.setPosition(x, 116 + scale * 7).setDisplaySize(scale * 11, scale * 2);
+      this.pet.setPosition(snapPixel(x), snapPixel(y)).setRotation(0).setAlpha(faint ? 1 - p * 0.35 : 1).setFlipX(false);
+      this.petShadow.setPosition(this.pet.x, snapPixel(this.pet.y + this.pet.displayHeight / 2 + 2))
+        .setDisplaySize(Math.max(12, this.pet.displayWidth * 0.74), Math.max(4, this.pet.displayHeight * 0.12));
     }
 
     private updateEnemy(state: GameState, event: StageVisualEvent | null, p: number, visible: boolean, reduced: boolean): void {
@@ -306,42 +319,42 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
       const attacking = hit?.source === 'enemy';
       const hurt = hit?.target === 'enemy';
       const dead = is(event, 'victory');
-      const scale = Math.max(2, Math.ceil(this.worldHeight * 0.25 / 16));
+      const isCoalCub = state.dungeon.activeRun?.enemy?.id === 'coal-cub' || state.dungeon.activeRun?.enemy?.name.toLowerCase() === 'coal cub';
+      const scale = isCoalCub ? 1 : Math.max(2, Math.ceil((this.height * 0.25) / (16 * this.zoom)));
       let x = 170;
       let y = 113;
-      let sx = 1;
-      let sy = 1;
       if (attacking && !reduced) {
         writeAttackPose(p, this.pose);
         x -= this.pose.x;
-        sx = this.pose.scaleX;
-        sy = this.pose.scaleY;
       } else if (!reduced) {
-        const breath = Math.sin(this.visualTime * 3) * 0.045;
-        sx += breath;
-        sy -= breath;
+        y += Math.sin(this.visualTime * 3) * 0.45;
         if (hurt && p >= IMPACT_START) x += Math.sin(clamp((p - IMPACT_START) / 0.54) * Math.PI) * 10;
       }
-      if (dead) { sy *= 1 - easeOut(p) * 0.8; y += p * 8; }
-      this.enemy.setPosition(x, y).setScale(scale * sx, scale * sy).setAlpha(dead ? 1 - p : 1);
+      if (dead) y += p * 8;
+      this.enemy.setPosition(snapPixel(x), snapPixel(y)).setScale(scale).setAlpha(dead ? 1 - p : 1);
       const element = state.dungeon.activeRun?.enemy?.element ?? 'moss';
       const paletteFrame = enemyPaletteFrames[element];
-      const key: AnimationKey = dead ? 'enemy1.death' : hurt ? 'enemy1.hurt' : attacking ? 'enemy1.attack' : element === 'fire' ? 'enemy1.variant-idle' : 'enemy1.idle';
-      this.play(this.enemy, key, p);
-      if (hurt && !reduced && p >= IMPACT_START && p <= IMPACT_END + 0.07) this.enemy.setFrame('enemy1.slime.hit-flash');
-      else if (element !== 'moss' && paletteFrame) this.enemy.setFrame(paletteFrame);
-      else if (this.enemy.frame.name === 'enemy1.slime.hit-flash') this.enemy.setFrame(F.slime);
-      this.enemyShadow.setPosition(x, 113 + scale * 6).setDisplaySize(scale * 11, scale * 2);
+      if (isCoalCub) {
+        const poseIndex = hurt && !reduced && p >= IMPACT_START && p <= IMPACT_END + 0.07
+          ? 3
+          : attacking && !reduced ? 1 + Math.floor(this.visualTime * 5) % 2 : 0;
+        if (this.enemy.texture.key !== COAL_CUB_TEXTURE || Number(this.enemy.frame.name) !== poseIndex) this.enemy.setTexture(COAL_CUB_TEXTURE, poseIndex);
+      } else {
+        const frame = hurt && !reduced && p >= IMPACT_START && p <= IMPACT_END + 0.07 ? 'enemy1.slime.hit-flash' : paletteFrame ?? F.slime;
+        if (this.enemy.frame.name !== frame) this.enemy.setTexture(NATIVE_STAGE_ATLAS_KEY, frame);
+      }
+      this.enemyShadow.setPosition(this.enemy.x, snapPixel(this.enemy.y + this.enemy.displayHeight / 2 + 2))
+        .setDisplaySize(Math.max(12, this.enemy.displayWidth * 0.74), Math.max(4, this.enemy.displayHeight * 0.12));
     }
 
     private updateProps(event: StageVisualEvent | null, p: number, reduced: boolean): void {
       const chest = is(event, 'chest_open');
-      this.chest.setVisible(chest).setFrame(p > 0.35 ? F.openChest : F.chest).setPosition(175, 124 - (reduced ? 0 : Math.sin(p * Math.PI) * 2));
+      this.chest.setVisible(chest).setFrame(p > 0.35 ? F.openChest : F.chest).setPosition(175, snapPixel(124 - (reduced ? 0 : Math.sin(p * Math.PI) * 2)));
       const eating = is(event, 'item_used');
       this.biscuit.setVisible(eating && p < 0.82);
       if (eating) {
         const t = reduced ? 1 : easeInOut(clamp(p / 0.6));
-        this.biscuit.setPosition(this.pet.x - 25 + t * 35, this.pet.y - 39 + t * 28).setScale(0.9 * (1 - t * 0.45));
+        this.biscuit.setPosition(snapPixel(this.pet.x - 25 + t * 35), snapPixel(this.pet.y - 39 + t * 28)).setScale(0.5);
       }
     }
 
@@ -353,8 +366,8 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
       this.ratios[3] = run?.enemy ? clamp(run.enemy.gauge / 100) : 0.35;
       for (let i = 0; i < 4; i += 1) {
         const actor = i < 2 ? this.pet : this.enemy;
-        const x = actor.x - 19;
-        const y = actor.y - actor.displayHeight / 2 - 8 + i % 2 * 5;
+        const x = snapPixel(actor.x - 19);
+        const y = snapPixel(actor.y - actor.displayHeight / 2 - 8 + i % 2 * 5);
         this.tracks[i]!.setVisible(visible).setPosition(x, y);
         this.bars[i]!.setVisible(visible).setPosition(x, y).setScale(this.ratios[i]!, 1);
       }
@@ -378,22 +391,22 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
         const age = this.elapsed - this.born[i]!;
         const t = clamp(age / 480);
         if (t >= 1 || reduced) { particle.setVisible(false); continue; }
-        particle.setPosition(this.particleX[i]! + this.particleVelocity[i]! * easeOut(t), this.particleY[i]! - Math.sin(t * Math.PI / 2) * 19).setAlpha(1 - t).setRotation(0);
+        particle.setPosition(snapPixel(this.particleX[i]! + this.particleVelocity[i]! * easeOut(t)), snapPixel(this.particleY[i]! - Math.sin(t * Math.PI / 2) * 19)).setAlpha(1 - t).setRotation(0);
       }
       const impact = Boolean(hit && (reduced || p >= IMPACT_START) && (reduced || p < 0.97));
       const rise = reduced ? 0 : easeOut(clamp((p - IMPACT_START) / (1 - IMPACT_START)));
       const target = hit?.target === 'pet' ? this.pet : this.enemy;
-      this.damage.setVisible(impact).setText(hit ? String(hit.amount) : '').setPosition(target.x, target.y - target.displayHeight / 2 - 17 - rise * 12)
-        .setColor(hit?.critical ? '#ffe09a' : '#fff8dc').setFontSize(Math.ceil((hit?.critical ? 26 : 20) / this.zoom)).setScale(reduced ? 1 : 1 + Math.sin(clamp((p - IMPACT_START) / 0.2) * Math.PI) * 0.18).setAlpha(p < 0.8 || reduced ? 1 : (1 - p) / 0.2);
-      this.critical.setVisible(impact && Boolean(hit?.critical)).setPosition(target.x, target.y - target.displayHeight / 2 - 37 - rise * 6);
+      this.damage.setVisible(impact).setText(hit ? String(hit.amount) : '').setPosition(snapPixel(target.x), snapPixel(target.y - target.displayHeight / 2 - 17 - rise * 12))
+        .setColor(hit?.critical ? '#ffe09a' : '#fff8dc').setFontSize(Math.ceil((hit?.critical ? 26 : 20) / this.zoom)).setScale(1).setAlpha(p < 0.8 || reduced ? 1 : (1 - p) / 0.2);
+      this.critical.setVisible(impact && Boolean(hit?.critical)).setPosition(snapPixel(target.x), snapPixel(target.y - target.displayHeight / 2 - 37 - rise * 6));
       const healed = event?.type === 'heal' ? event : null;
       const miss = is(event, 'miss');
       const status = event?.type === 'status_applied' ? event.status.toUpperCase() : is(event, 'buff_applied') ? 'BUFF' : '';
-      this.status.setVisible(Boolean(healed || miss || status)).setText(healed ? `+${healed.amount}` : miss ? 'MISS' : status).setPosition(this.pet.x, this.pet.y - this.pet.displayHeight / 2 - 18 - (reduced ? 0 : easeOut(p) * 8));
+      this.status.setVisible(Boolean(healed || miss || status)).setText(healed ? `+${healed.amount}` : miss ? 'MISS' : status).setPosition(snapPixel(this.pet.x), snapPixel(this.pet.y - this.pet.displayHeight / 2 - 18 - (reduced ? 0 : easeOut(p) * 8)));
       const intro = is(event, 'enemy_appear') || is(event, 'combat_start');
       const showBanner = intro || is(event, 'chest_open') || is(event, 'floor_cleared') || is(event, 'victory');
       const title = is(event, 'chest_open') ? 'TREASURE!' : is(event, 'floor_cleared') ? 'FLOOR CLEAR!' : is(event, 'victory') ? 'WELL DONE!' : is(event, 'enemy_appear') ? 'A SLIME APPEARS!' : 'READY!';
-      this.banner.setVisible(showBanner).setText(title).setPosition(120 - (reduced ? 0 : (1 - easeOut(clamp(p / 0.32))) * 90), this.top + (this.zoom >= 2 ? 40 : 24));
+      this.banner.setVisible(showBanner).setText(title).setPosition(snapPixel(120 - (reduced ? 0 : (1 - easeOut(clamp(p / 0.32))) * 90)), snapPixel(this.top + (this.zoom >= 2 ? 40 : 24)));
     }
 
     private burst(count: number, x: number, y: number, tint: number, coin: boolean): void {
@@ -402,11 +415,11 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
         const particle = this.particles[i]!;
         if (particle.visible) continue;
         this.born[i] = this.elapsed;
-        this.particleX[i] = x + (this.rng.next() - 0.5) * 20;
-        this.particleY[i] = y + (this.rng.next() - 0.5) * 9;
+        this.particleX[i] = snapPixel(x + (this.rng.next() - 0.5) * 20);
+        this.particleY[i] = snapPixel(y + (this.rng.next() - 0.5) * 9);
         this.particleVelocity[i] = (this.rng.next() - 0.5) * 24;
         const glyph = coin ? F.coin : tint === 0xb2f0bc ? 'particle.heal' : tint === 0xd9d1aa ? 'particle.dust' : 'particle.gold';
-        particle.setTexture(NATIVE_STAGE_ATLAS_KEY, glyph).setScale(coin ? 0.45 : 0.25).setPosition(this.particleX[i]!, this.particleY[i]!).setAlpha(1).setVisible(true);
+        particle.setTexture(NATIVE_STAGE_ATLAS_KEY, glyph).setScale(0.5).setPosition(this.particleX[i]!, this.particleY[i]!).setAlpha(1).setVisible(true);
         used += 1;
       }
     }
@@ -416,9 +429,8 @@ export function createNativeStageScene(Phaser: PhaserRuntime, bridge: NativeStag
       const contact = Boolean(hit && p >= IMPACT_START && p < 0.68);
       const strength = hit ? clamp(hit.amount / 35, 0.3, 1) : 0;
       const shake = !reduced && contact ? Math.sin((p - IMPACT_START) * 160) * strength * (hit?.critical ? 1.8 : 0.8) : 0;
-      const punch = !reduced && hit?.critical && p >= IMPACT_START ? Math.sin(clamp((p - IMPACT_START) / 0.4) * Math.PI) * 0.035 : 0;
       const follow = reduced ? 0 : clamp((this.pet.x - 70) * 0.025, -1.5, 1.5);
-      this.cameras.main.setZoom(this.zoom * (1 + punch)).centerOn(120 + follow + shake, 85 + shake * 0.45);
+      this.cameras.main.setZoom(this.zoom).centerOn(snapPixel(120 + follow + shake), snapPixel(85 + shake * 0.45));
       const run = state.dungeon.activeRun;
       const floor = run?.floor ?? 0;
       const room = run?.roomIndex ?? -1;

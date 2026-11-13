@@ -101,37 +101,41 @@ async function openSeededRun(page: Page): Promise<Locator> {
   const dungeon = page.getByRole('dialog', { name: 'The Endless Descent' });
   await expect(dungeon).toBeVisible();
   await dungeon.getByTestId('dungeon-start').click();
+  await expect(dungeon).toBeHidden();
   await expect(page.locator('#stage-location')).toHaveText('CINDER COPSE');
   await expect.poll(() => page.evaluate(() => window.__game?.getState()?.dungeon.activeRun?.phase ?? null)).toBe('choice');
+  await expect(page.getByTestId('stage-decision')).toBeVisible();
   return dungeon;
 }
 
 async function resolveCurrentDecision(page: Page, dungeon: Locator, firstFight: boolean): Promise<string> {
   const phase = await page.evaluate(() => window.__game?.getState()?.dungeon.activeRun?.phase ?? null);
   if (phase === 'choice') {
-    const fight = dungeon.getByTestId('room-fight');
-    const room = await fight.count() ? fight : dungeon.locator('[data-testid^="room-"]').first();
+    const fight = page.getByTestId('room-fight');
+    const room = await fight.count() ? fight : page.locator('[data-testid^="room-"]').first();
     await expect(room).toBeVisible();
     await room.click();
   } else if (phase === 'tactic') {
-    const tactic = dungeon.getByTestId('tactic-all-in');
+    const tactic = page.getByTestId('tactic-all-in');
     await expect(tactic).toBeVisible();
     if (firstFight) await expect(page.locator('#stage-speed')).toHaveAttribute('aria-label', /^Animation speed 1/);
     await tactic.click();
   } else if (phase === 'event') {
-    await dungeon.locator('[data-run-action="event"]').first().click();
+    await page.locator('[data-run-action="event"]').first().click();
   } else if (phase === 'treasure') {
-    await dungeon.locator('[data-run-action="treasure"]').click();
+    await page.locator('[data-run-action="treasure"]').click();
   } else if (phase === 'rest') {
-    await dungeon.locator('[data-run-action="rest"]').click();
+    await page.locator('[data-run-action="rest"]').click();
   } else if (phase === 'shop') {
+    await page.getByRole('button', { name: 'Browse shop' }).click();
+    await expect(dungeon).toBeVisible();
     const buy = dungeon.locator('[data-run-action="buy"]:not(:disabled)').first();
     if (await buy.count()) await buy.click();
     await dungeon.locator('[data-run-action="continue-shop"]').click();
   } else if (phase === 'loot') {
-    await dungeon.locator('[data-run-action="take-drop"]').click();
+    await page.locator('[data-run-action="take-drop"]').click();
   } else if (phase === 'combat') {
-    await expect(dungeon.getByTestId('dungeon-fight')).toBeVisible();
+    await expect(page.getByTestId('stage-canvas')).toBeVisible();
     await expect.poll(
       () => page.evaluate(() => window.__game?.getEventLog().some((event) => event.type === 'attack') ?? false),
       { timeout: 20_000, intervals: [100, 200, 400] },
@@ -158,7 +162,7 @@ test('seeded run plays every Floor 1 room, resolves a real fight, banks, and clo
       const run = await page.evaluate(() => window.__game?.getState()?.dungeon.activeRun);
       expect(run?.floor).toBe(1);
       expect(run?.roomIndex).toBe(3);
-      await dungeon.getByTestId('dungeon-leave').click();
+      await page.getByTestId('dungeon-leave').click();
       await waitForPhase(page, 'summary');
       continue;
     }
@@ -171,8 +175,8 @@ test('seeded run plays every Floor 1 room, resolves a real fight, banks, and clo
   }
 
   await waitForPhase(page, 'summary');
-  await expect(dungeon.getByTestId('dungeon-summary')).toBeVisible();
-  await expect(dungeon.getByTestId('dungeon-summary')).toContainText('Safe return');
+  await expect(page.getByTestId('dungeon-summary')).toBeVisible();
+  await expect(page.getByTestId('dungeon-summary')).toContainText('Safe return');
   const summaryState = await page.evaluate(() => window.__game?.getState()?.dungeon.activeRun);
   expect(summaryState?.result).toBe('left');
   expect(summaryState?.floor).toBe(1);
@@ -186,7 +190,7 @@ test('seeded run plays every Floor 1 room, resolves a real fight, banks, and clo
   expect(eventTypes.filter((type) => type === 'room_enter')).toHaveLength(3);
   expect(eventTypes.indexOf('attack')).toBeGreaterThan(eventTypes.indexOf('combat_start'));
   expect(eventTypes.indexOf('victory')).toBeGreaterThan(eventTypes.indexOf('attack'));
-  await dungeon.getByTestId('dungeon-summary-close').click();
+  await page.getByTestId('dungeon-summary-close').click();
   await expect(page.getByTestId('dungeon-open')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__game?.getEventLog().some((event) => event.type === 'return_home'))).toBe(true);
   expect(consoleErrors).toEqual([]);
@@ -238,7 +242,7 @@ test('reduced motion keeps Phaser ready, rendered, bounded, and exposes all anim
   const consoleErrors = await collectConsoleErrors(page);
   await installSeededPet(page);
   const dungeon = await openSeededRun(page);
-  await dungeon.getByRole('button', { name: 'Close dungeon' }).click();
+  await expect(dungeon).toBeHidden();
   const speed = page.locator('#stage-speed');
   await expect(speed).toHaveAttribute('aria-label', /^Animation speed 1/);
   await speed.click();

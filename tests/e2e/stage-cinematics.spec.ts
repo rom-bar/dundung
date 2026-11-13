@@ -33,7 +33,7 @@ async function installSeededPet(page: import('@playwright/test').Page): Promise<
   });
 }
 
-test('seeded dungeon walk and combat events play on the stage and pause for decisions', async ({ page }, testInfo) => {
+test('seeded dungeon walk and combat events play on the stage while choices stay over the live scene', async ({ page }, testInfo) => {
   test.skip(!['phone-360', 'landscape-740', 'desktop-1280'].includes(testInfo.project.name), 'Step 3 acceptance and visual evidence sizes');
   test.setTimeout(45_000);
   await installSeededPet(page);
@@ -48,9 +48,12 @@ test('seeded dungeon walk and combat events play on the stage and pause for deci
   const dungeon = page.getByRole('dialog', { name: 'The Endless Descent' });
   await page.getByTestId('dungeon-open').click();
   await expect(dungeon).toBeVisible();
+  const backdropFilter = await dungeon.evaluate((element) => getComputedStyle(element, '::backdrop').backdropFilter);
+  expect(backdropFilter).toBe('none');
   await dungeon.getByTestId('dungeon-start').click();
+  await expect(dungeon).toBeHidden();
   await expect(page.locator('#stage-location')).toHaveText('CINDER COPSE');
-  await dungeon.getByRole('button', { name: 'Close dungeon' }).click();
+  await expect(page.getByTestId('stage-decision')).toBeVisible();
 
   const saveFrame = async (name: string): Promise<void> => {
     if (!['phone-360', 'landscape-740'].includes(testInfo.project.name)) return;
@@ -59,14 +62,15 @@ test('seeded dungeon walk and combat events play on the stage and pause for deci
   };
   await saveFrame('dungeon-walk');
 
-  await page.getByTestId('dungeon-open').click();
-  await expect(dungeon.locator('[data-testid^="room-"]')).toHaveCount(3);
-  await dungeon.getByTestId('room-fight').click();
-  await expect(dungeon.getByTestId('tactic-all-in')).toBeVisible();
-  const pausedDecision = await page.evaluate(() => window.__game?.getPlaybackState());
+  await expect(page.getByTestId('stage-decision').locator('[data-testid^="room-"]')).toHaveCount(3);
+  const canvas = page.locator('[data-testid="stage-canvas"]');
+  const frameBeforeDecisionWait = await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
   await page.waitForTimeout(180);
-  expect(await page.evaluate(() => window.__game?.getPlaybackState())).toEqual(pausedDecision);
-  await dungeon.getByRole('button', { name: 'Close dungeon' }).click();
+  const frameAfterDecisionWait = await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL());
+  expect(frameAfterDecisionWait).not.toBe(frameBeforeDecisionWait);
+  await page.getByTestId('room-fight').click();
+  await expect(page.getByTestId('tactic-all-in')).toBeVisible();
+  await expect(dungeon).toBeHidden();
 
   const waitForEvent = async (eventType: string, screenshotName: string): Promise<void> => {
     await expect.poll(
@@ -78,10 +82,7 @@ test('seeded dungeon walk and combat events play on the stage and pause for deci
   };
   await waitForEvent('enemy_appear', 'enemy-intro');
 
-  await page.getByTestId('dungeon-open').click();
-  await expect(dungeon.getByTestId('tactic-all-in')).toBeVisible();
-  await dungeon.getByTestId('tactic-all-in').click();
-  await dungeon.getByRole('button', { name: 'Close dungeon' }).click();
+  await page.getByTestId('tactic-all-in').click();
   await waitForEvent('combat_start', 'combat-start');
   await waitForEvent('attack', 'combat-damage');
   await expect(page.locator('#stage-hp-status')).toBeVisible();

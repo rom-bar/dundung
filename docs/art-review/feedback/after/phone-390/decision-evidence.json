@@ -1,0 +1,28 @@
+{
+  "pass": "after",
+  "project": "phone-390",
+  "backdropFilter": "none",
+  "frameChanged": true,
+  "geometry": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "frame": {
+      "left": 13,
+      "top": 53,
+      "right": 377,
+      "bottom": 424.671875
+    },
+    "card": {
+      "left": 21,
+      "top": 61,
+      "right": 292.4375,
+      "bottom": 262.375
+    },
+    "scrollWidth": 390,
+    "scrollHeight": 844
+  },
+  "cardInsideScene": true,
+  "errors": []
+}

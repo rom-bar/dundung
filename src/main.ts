@@ -13,6 +13,7 @@ import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
 import { attachTouchControls } from './platform/touch-controls';
 import { createMiniMode } from './platform/mini-mode';
+import { splitElapsedMs } from './platform/simulation-clock';
 import { getAllForms, getEffectiveStats, getEvolutionWeightHints, getFormDefinition, getLevelCap, getTraitList, xpToNextLevel } from './core/progression';
 import { getBiomeForFloor, getDungeonData } from './core/dungeon';
 import { getAchievementStatuses, getCosmeticName, getHomeEffects, getHomeUpgradeCost, getHomeUpgradeDefinitions, getTrainingCap } from './core/home';
@@ -79,6 +80,11 @@ declare global {
         petWidth: number;
         petSpriteHeight: number;
         petFrameName: string;
+        petX: number;
+        petY: number;
+        petScaleX: number;
+        petScaleY: number;
+        shadowY: number;
       } | null;
     };
   }
@@ -224,6 +230,7 @@ root.innerHTML = `
           </div>
           <div class="scene-frame">
             <canvas id="pet-scene" data-testid="stage-canvas" width="240" height="160" role="img" aria-label="Pip resting in a small cave habitat"></canvas>
+            <div class="stage-choice-overlay" id="stage-choice-overlay" data-testid="stage-choice-overlay" hidden></div>
             <div class="scene-caption"><span id="stage-detail">A tiny life is stirring.</span><span class="scene-pin" aria-hidden="true">✦</span></div>
           </div>
           <div class="stage-ticker" id="stage-ticker" data-testid="stage-ticker" role="status" aria-live="polite">Pip's little world is waking up.</div>
@@ -451,6 +458,7 @@ root.innerHTML = `
 `;
 
 const canvas = must<HTMLCanvasElement>('#pet-scene');
+const stageChoiceOverlay = must<HTMLDivElement>('#stage-choice-overlay');
 const stageEngine = new PhaserStageAdapter(canvas, stageRenderer);
 let artPreviewName: NativeStagePreviewName | null = null;
 const artPreviewCaptions: Record<NativeStagePreviewName, string> = {
@@ -501,10 +509,12 @@ const miniMode = createMiniMode({
   onStageFrame: (timeMs, deltaMs) => renderStageFrame(timeMs, deltaMs, true),
   onAction: sendAction,
   onOpen: (kind) => {
+    stageEngine.resetClock();
     miniModeButton.setAttribute('aria-pressed', 'true');
     miniModeButton.title = kind === 'document' ? 'Mini mode is open' : 'Video mini mode is open';
   },
   onClose: () => {
+    stageEngine.resetClock();
     miniModeButton.setAttribute('aria-pressed', 'false');
     miniModeButton.title = 'Open mini mode';
     pauseAndSave();
@@ -589,6 +599,14 @@ function must<T extends Element>(selector: string): T {
   const element = root?.querySelector<T>(selector);
   if (!element) throw new Error(`Pocket Pal is missing ${selector}.`);
   return element;
+}
+
+const renderedMarkup = new WeakMap<HTMLElement, string>();
+
+function setMarkupIfChanged(element: HTMLElement, markup: string): void {
+  if (renderedMarkup.get(element) === markup) return;
+  element.innerHTML = markup;
+  renderedMarkup.set(element, markup);
 }
 
 function readSetting(key: string, fallback: boolean): boolean {
@@ -816,7 +834,7 @@ function renderGearItem(item: EquipmentItem, current: GameState, options: {
 
 function renderGearWallet(current: GameState): void {
   const wallet = must<HTMLDivElement>('#gear-wallet');
-  wallet.innerHTML = `<span><small>Coins</small><strong>${current.dungeon.coins}</strong></span><span><small>Scrap</small><strong>${current.dungeon.scrap}</strong></span><span><small>Essence</small><strong>${current.dungeon.essence}</strong></span><span><small>Stones</small><strong>${current.evolution.evolutionStones}</strong></span>`;
+  setMarkupIfChanged(wallet, `<span><small>Coins</small><strong>${current.dungeon.coins}</strong></span><span><small>Scrap</small><strong>${current.dungeon.scrap}</strong></span><span><small>Essence</small><strong>${current.dungeon.essence}</strong></span><span><small>Stones</small><strong>${current.evolution.evolutionStones}</strong></span>`);
 }
 
 function renderGearLoadout(current: GameState): string {
@@ -894,9 +912,12 @@ function renderEquipment(current: GameState): void {
   gearDialog.querySelectorAll<HTMLButtonElement>('[data-gear-tab]').forEach((tab) => {
     tab.setAttribute('aria-selected', String(tab.dataset.gearTab === selectedGearTab));
   });
-  if (selectedGearTab === 'loadout') gearContent.innerHTML = renderGearLoadout(current);
-  else if (selectedGearTab === 'bag') gearContent.innerHTML = renderGearBag(current);
-  else gearContent.innerHTML = renderGearWorkshop(current);
+  const markup = selectedGearTab === 'loadout'
+    ? renderGearLoadout(current)
+    : selectedGearTab === 'bag'
+      ? renderGearBag(current)
+      : renderGearWorkshop(current);
+  setMarkupIfChanged(gearContent, markup);
 }
 
 function renderHomeUpgrades(current: GameState): string {
@@ -1009,14 +1030,18 @@ function renderHomeEndless(current: GameState): string {
 }
 
 function renderHome(current: GameState): void {
-  homeWallet.innerHTML = `<span><small>Coins</small><strong>${current.dungeon.coins}</strong></span><span><small>Scrap</small><strong>${current.dungeon.scrap}</strong></span><span><small>Essence</small><strong>${current.dungeon.essence}</strong></span><span><small>Achievements</small><strong>${current.home.unlockedAchievementIds.length}</strong></span>`;
+  setMarkupIfChanged(homeWallet, `<span><small>Coins</small><strong>${current.dungeon.coins}</strong></span><span><small>Scrap</small><strong>${current.dungeon.scrap}</strong></span><span><small>Essence</small><strong>${current.dungeon.essence}</strong></span><span><small>Achievements</small><strong>${current.home.unlockedAchievementIds.length}</strong></span>`);
   homeDialog.querySelectorAll<HTMLButtonElement>('[data-home-tab]').forEach((tab) => {
     tab.setAttribute('aria-selected', String(tab.dataset.homeTab === selectedHomeTab));
   });
-  if (selectedHomeTab === 'upgrades') homeContent.innerHTML = renderHomeUpgrades(current);
-  else if (selectedHomeTab === 'achievements') homeContent.innerHTML = renderHomeAchievements(current);
-  else if (selectedHomeTab === 'records') homeContent.innerHTML = renderHomeRecords(current);
-  else homeContent.innerHTML = renderHomeEndless(current);
+  const markup = selectedHomeTab === 'upgrades'
+    ? renderHomeUpgrades(current)
+    : selectedHomeTab === 'achievements'
+      ? renderHomeAchievements(current)
+      : selectedHomeTab === 'records'
+        ? renderHomeRecords(current)
+        : renderHomeEndless(current);
+  setMarkupIfChanged(homeContent, markup);
 }
 
 function healthMeter(label: string, value: number, maximum: number, kind: string): string {
@@ -1228,6 +1253,48 @@ function renderDungeon(current: GameState): void {
     </section>
     <section class="dungeon-console">${stage}${run.phase !== 'summary' ? `<section class="pack-panel" aria-label="Run pack"><div class="dungeon-section-heading"><h3>Run pack</h3><span>${run.consumables.length} / ${homeEffects.packSlots}</span></div>${renderPack(run)}</section>` : ''}</section>
   </div>`;
+}
+
+function renderStageDecision(current: GameState): void {
+  const run = current.dungeon.activeRun;
+  if (!run) {
+    if (!stageChoiceOverlay.hidden) stageChoiceOverlay.hidden = true;
+    setMarkupIfChanged(stageChoiceOverlay, '');
+    return;
+  }
+
+  let content = '';
+  if (run.phase === 'choice') {
+    content = `<p class="stage-choice-kicker">Choose the next room</p><h3>Which path feels right?</h3><div class="stage-choice-options">${run.roomChoices.map((type) => {
+      const item = roomPresentation[type];
+      return `<button class="stage-choice-option" type="button" data-run-action="room" data-room-type="${type}" data-testid="room-${type}"><strong>${item.title}</strong><small>${item.detail}</small></button>`;
+    }).join('')}</div>`;
+  } else if (run.phase === 'tactic' && run.enemy) {
+    content = `<p class="stage-choice-kicker">Before the fight · ${escapeHtml(run.enemy.name)}</p><h3>Pick one tactic</h3><div class="stage-choice-options">${dungeonData.tactics.map((tactic) => `<button class="stage-choice-option" type="button" data-run-action="tactic" data-tactic-id="${escapeHtml(tactic.id)}" data-testid="tactic-${escapeHtml(tactic.id)}"><strong>${escapeHtml(tactic.name)}</strong><small>${escapeHtml(tactic.description)}</small></button>`).join('')}</div>`;
+  } else if (run.phase === 'event' && run.eventId) {
+    const event = dungeonData.events.find((item) => item.id === run.eventId);
+    if (event) content = `<p class="stage-choice-kicker">A small story on the path</p><h3>${escapeHtml(event.title)}</h3><p class="stage-choice-copy">${escapeHtml(event.description)}</p><div class="stage-choice-options">${event.options.map((option) => `<button class="stage-choice-option" type="button" data-run-action="event" data-option-id="${escapeHtml(option.id)}"><strong>${escapeHtml(option.label)}</strong><small>${Math.round(option.successChance * 100)}% chance to go well</small></button>`).join('')}</div>`;
+  } else if (run.phase === 'treasure') {
+    content = `<p class="stage-choice-kicker">A quiet glimmer</p><h3>Treasure room</h3><p class="stage-choice-copy">Open the chest for run coins, a chance at a token, and a little find.</p><button class="stage-choice-primary" type="button" data-run-action="treasure">Open treasure</button>`;
+  } else if (run.phase === 'rest') {
+    content = `<p class="stage-choice-kicker">Take a breath</p><h3>Rest stop</h3><p class="stage-choice-copy">Restore ${Math.round(run.petMaxHp * dungeonRules.restHealPercent)} health and ${dungeonRules.restEnergyRestore} energy before continuing.</p><button class="stage-choice-primary" type="button" data-run-action="rest">Rest here</button>`;
+  } else if (run.phase === 'floor-end') {
+    content = `<p class="stage-choice-kicker">A natural stopping point</p><h3>Floor ${run.floor} cleared</h3><p class="stage-choice-copy">Pip has ${run.petHp} / ${run.petMaxHp} health. Bank your finds or keep going.</p><div class="stage-choice-options stage-choice-actions"><button class="stage-choice-primary" type="button" data-run-action="descend" data-testid="dungeon-descend">Descend</button><button class="stage-choice-option" type="button" data-run-action="leave" data-testid="dungeon-leave">Leave and bank</button></div>`;
+  } else if (run.phase === 'loot' && run.pendingItem) {
+    const item = run.pendingItem;
+    const itemName = getItemTemplate(item.templateId)?.name ?? item.templateId;
+    content = `<p class="stage-choice-kicker">A new find · ${escapeHtml(item.rarity)}</p><h3>${escapeHtml(itemName)}</h3><p class="stage-choice-copy">Take it in the run bag, turn it into ${getScrapValue(item)} Scrap, or leave it behind.</p><div class="stage-choice-options stage-choice-actions"><button class="stage-choice-primary" type="button" data-run-action="take-drop">Take gear</button><button class="stage-choice-option" type="button" data-run-action="scrap-drop">Scrap</button><button class="stage-choice-option" type="button" data-run-action="leave-drop">Leave</button></div>`;
+  } else if (run.phase === 'shop') {
+    content = `<p class="stage-choice-kicker">Traveling shop · ${run.coins} run coins</p><h3>A little shop is open</h3><button class="stage-choice-primary" type="button" data-stage-open="dungeon">Browse shop</button>`;
+  } else if (run.phase === 'summary') {
+    const fainted = run.result === 'fainted';
+    content = `<p class="stage-choice-kicker">${fainted ? 'A brave try' : 'Safe return'} · Floor ${run.floor}</p><h3>${fainted ? 'Pip is ready to rest' : 'The descent is complete'}</h3><p class="stage-choice-copy">+${run.bankedCoins} coins · ${run.bankedItemCount} gear · ${run.bankedScrap} Scrap · ${run.bankedEssence} Essence</p><button class="stage-choice-primary" type="button" data-run-action="close-summary" data-testid="dungeon-summary-close">Back to Pip</button>`;
+  }
+
+  const decisionTestId = run.phase === 'summary' ? 'dungeon-summary' : 'stage-decision';
+  const markup = content ? `<section class="stage-choice-card" data-testid="${decisionTestId}" aria-label="${run.phase === 'summary' ? 'Run summary' : 'Dungeon choice'}">${content}</section>` : '';
+  setMarkupIfChanged(stageChoiceOverlay, markup);
+  if (stageChoiceOverlay.hidden !== !markup) stageChoiceOverlay.hidden = !markup;
 }
 
 function renderFoodActions(): void {
@@ -1504,6 +1571,30 @@ function setStageDrawerExpanded(expanded: boolean): void {
   toggle.setAttribute('aria-expanded', String(expanded));
 }
 
+function openDungeonSurface(current: GameState): void {
+  const run = current.dungeon.activeRun;
+  if (!run) {
+    dungeonDialog.classList.remove('is-run-sheet');
+    renderDungeon(current);
+    dungeonDialog.showModal();
+    return;
+  }
+  if (run.phase === 'shop') {
+    dungeonDialog.classList.add('is-run-sheet');
+    renderDungeon(current);
+    dungeonDialog.showModal();
+    return;
+  }
+  const choiceButton = stageChoiceOverlay.querySelector<HTMLButtonElement>('button');
+  if (!stageChoiceOverlay.hidden && choiceButton) {
+    choiceButton.focus({ preventScroll: true });
+    return;
+  }
+  selectedStageTab = 'log';
+  renderStageSheet(current);
+  setStageDrawerExpanded(true);
+}
+
 function updateStageHud(current: GameState): void {
   const run = current.dungeon.activeRun;
   const hpStatus = must<HTMLElement>('#stage-hp-status');
@@ -1537,7 +1628,7 @@ function updateStageHud(current: GameState): void {
     must<HTMLElement>('#stage-run-summary').textContent = `F${run.floor} · ${run.coins}c`;
     must<HTMLButtonElement>('#stage-actions-home').hidden = true;
     must<HTMLButtonElement>('#stage-actions-run').hidden = false;
-    must<HTMLElement>('#stage-decision-label').textContent = run.phase === 'tactic' ? 'Tactic' : run.phase === 'choice' ? 'Path' : run.phase === 'floor-end' ? 'Next' : run.phase === 'summary' ? 'Summary' : 'Details';
+    must<HTMLElement>('#stage-decision-label').textContent = run.phase === 'tactic' ? 'Tactic' : run.phase === 'choice' ? 'Path' : run.phase === 'floor-end' ? 'Next' : run.phase === 'summary' ? 'Return' : run.phase === 'shop' ? 'Shop' : run.phase === 'loot' ? 'Loot' : 'Details';
     const leave = must<HTMLButtonElement>('#stage-actions-run [data-run-action="leave"]');
     leave.disabled = current.paused || run.phase !== 'floor-end';
   } else {
@@ -1650,6 +1741,12 @@ function updateControls(current: GameState): void {
   const dungeonOpen = must<HTMLButtonElement>('#dungeon-open');
   dungeonOpen.disabled = current.paused || (!current.dungeon.activeRun && (current.sleeping || current.stage === 'egg' || !current.evolution.formId));
   dungeonOpen.setAttribute('aria-pressed', String(Boolean(current.dungeon.activeRun)));
+  renderStageDecision(current);
+  if (current.dungeon.activeRun && current.dungeon.activeRun.phase !== 'shop' && dungeonDialog.open) {
+    dungeonDialog.close();
+    dungeonDialog.classList.remove('is-run-sheet');
+  }
+  if (!current.dungeon.activeRun) dungeonDialog.classList.remove('is-run-sheet');
   if (dungeonDialog.open) renderDungeon(current);
   if (gearDialog.open && !hasFocusedField(gearDialog)) renderEquipment(current);
   if (homeDialog.open && !hasFocusedField(homeDialog)) renderHome(current);
@@ -1751,21 +1848,17 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
   }
 }
 
-function isDecisionPhase(phase: DungeonRunState['phase'] | undefined): boolean {
-  return phase === 'choice'
-    || phase === 'tactic'
-    || phase === 'event'
-    || phase === 'treasure'
-    || phase === 'rest'
-    || phase === 'shop'
-    || phase === 'floor-end';
-}
+const MAX_FRAME_CATCH_UP_MS = 5_000;
 
 function renderStageFrame(timeMs: number, deltaMs: number, advancePlayback: boolean, rawDeltaMs = deltaMs): void {
   if (!state) return;
-  const decisionPaused = dungeonDialog.open && isDecisionPhase(state.dungeon.activeRun?.phase);
-  const safeDelta = Number.isFinite(deltaMs) ? Math.max(0, Math.min(deltaMs, rules.simulation.maxStepMs)) : 0;
-  if (advancePlayback) stageEventPlayer.advance(safeDelta, animationSpeed, prefersReducedMotion.matches, decisionPaused);
+  const decisionPaused = false;
+  const elapsedMs = Number.isFinite(rawDeltaMs) ? Math.max(0, Math.min(rawDeltaMs, MAX_FRAME_CATCH_UP_MS)) : 0;
+  if (advancePlayback) {
+    for (const stepMs of splitElapsedMs(elapsedMs, rules.simulation.maxStepMs)) {
+      stageEventPlayer.advance(stepMs, animationSpeed, prefersReducedMotion.matches, false);
+    }
+  }
   const frame = stageEventPlayer.frame();
   const renderStartedAt = performance.now();
   stageEngine.render(state, timeMs / 1000, prefersReducedMotion.matches, frame, stageEventPlayer.hasBattleSequence(), decisionPaused);
@@ -1796,12 +1889,14 @@ function startLoop(now: number): void {
   const isVisible = document.visibilityState === 'visible';
   if (state && !state.paused && (isVisible || miniMode.kind === 'video')) {
     const rawDeltaMs = lastFrameTime > 0 ? Math.max(0, now - lastFrameTime) : 0;
-    const deltaMs = Math.min(rawDeltaMs, rules.simulation.maxStepMs);
-    if (!miniMode.open && isVisible && deltaMs > 0) worker.postMessage({ type: 'tick', dtMs: deltaMs });
+    const elapsedMs = Math.min(rawDeltaMs, MAX_FRAME_CATCH_UP_MS);
+    if (!miniMode.open && isVisible && elapsedMs > 0) {
+      for (const dtMs of splitElapsedMs(elapsedMs, rules.simulation.maxStepMs)) worker.postMessage({ type: 'tick', dtMs });
+    }
     const shouldRenderStage = !miniMode.open && isVisible;
     lastFrameTime = miniMode.open ? 0 : now;
     if (shouldRenderStage) {
-      renderStageFrame(now, deltaMs, true, rawDeltaMs);
+      renderStageFrame(now, elapsedMs, true, elapsedMs);
       if ((import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') && state.dungeon.activeRun?.phase === 'combat' && !state.paused) {
         combatLoopWorkTotalMs += performance.now() - loopStartedAt;
         combatLoopWorkSamples += 1;
@@ -1884,8 +1979,7 @@ root.addEventListener('click', (event) => {
     if (state) updateControls(state);
   } else if (button.dataset.guideAction === 'dungeon') {
     if (state && !button.disabled) {
-      renderDungeon(state);
-      dungeonDialog.showModal();
+      openDungeonSurface(state);
     }
   } else if (button.id === 'stage-sheet-toggle') {
     if (sheetSwipeHandled) {
@@ -1902,8 +1996,7 @@ root.addEventListener('click', (event) => {
     }
   } else if (button.dataset.stageOpen) {
     if (button.dataset.stageOpen === 'dungeon') {
-      if (state) renderDungeon(state);
-      dungeonDialog.showModal();
+      if (state) openDungeonSurface(state);
     } else if (button.dataset.stageOpen === 'gear') {
       if (state) renderEquipment(state);
       gearDialog.showModal();
@@ -1927,10 +2020,10 @@ root.addEventListener('click', (event) => {
       showToast(state?.paused ? 'Continue with Pip before opening mini mode.' : 'Mini mode could not open here.');
     });
   } else if (button.id === 'dungeon-open') {
-    if (state) renderDungeon(state);
-    dungeonDialog.showModal();
+    if (state) openDungeonSurface(state);
   } else if (button.id === 'dungeon-close') {
     dungeonDialog.close();
+    dungeonDialog.classList.remove('is-run-sheet');
   } else if (button.id === 'home-open') {
     if (state) renderHome(state);
     homeDialog.showModal();

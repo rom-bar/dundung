@@ -30,7 +30,7 @@ async function installAdultPet(page: import('@playwright/test').Page): Promise<v
 }
 
 test('Phaser slice visual review captures sourced art and a full attack sequence', async ({ page }, testInfo) => {
-  test.skip(!['phone-360', 'landscape-740'].includes(testInfo.project.name), 'The brief requires portrait 360x740 and landscape 740x360 review.');
+  test.skip(!['phone-360', 'phone-390', 'landscape-740'].includes(testInfo.project.name), 'Review portrait 360x740 and 390x844 plus landscape 740x360.');
   test.setTimeout(60_000);
   const round = process.env.PHASER_ART_ROUND ?? '6';
   if (!/^[1-9]\d?$/.test(round)) throw new Error('PHASER_ART_ROUND must be an integer from 1 to 99.');

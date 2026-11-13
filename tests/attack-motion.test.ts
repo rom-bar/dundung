@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { IMPACT_END, IMPACT_START, writeAttackPose, type AttackPose } from '../src/render/stage/attack-motion';
 
-const pose = (): AttackPose => ({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
+const pose = (): AttackPose => ({ x: 0, y: 0 });
 
 describe('presentation-only attack motion', () => {
   it('starts and recovers at the same resting pose', () => {
@@ -12,13 +12,11 @@ describe('presentation-only attack motion', () => {
     expect(out).toEqual(pose());
   });
 
-  it('winds back and squats before the forward contact lunge', () => {
+  it('eases backward before the forward contact lunge', () => {
     const out = pose();
     writeAttackPose(0.2, out);
     expect(out.x).toBeLessThan(0);
     expect(out.y).toBeGreaterThan(0);
-    expect(out.scaleX).toBeGreaterThan(1);
-    expect(out.scaleY).toBeLessThan(1);
     writeAttackPose(0.44, out);
     expect(out.x).toBeGreaterThan(55);
   });

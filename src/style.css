@@ -244,6 +244,58 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
   background: var(--night);
 }
 
+.stage-choice-overlay {
+  position: absolute;
+  z-index: 8;
+  inset: 8px 8px 38px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  pointer-events: none;
+}
+.stage-choice-overlay[hidden] { display: none !important; }
+.stage-choice-card {
+  width: min(78%, 360px);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 9px 10px;
+  border: 1px solid rgba(241, 201, 107, .58);
+  border-radius: 5px;
+  background: rgba(27, 23, 43, .96);
+  color: var(--paper);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .38);
+  pointer-events: auto;
+  scrollbar-color: var(--mint) transparent;
+}
+.stage-choice-card h3 { margin: 2px 0 6px; font-family: 'Press Start 2P', monospace; font-size: clamp(9px, 2.9vw, 12px); line-height: 1.6; }
+.stage-choice-kicker { margin: 0; color: var(--mint); font-size: 9px; font-weight: 700; line-height: 1.3; }
+.stage-choice-copy { margin: 4px 0 8px; color: var(--paper); font-size: 10px; line-height: 1.35; }
+.stage-choice-options { display: grid; gap: 5px; }
+.stage-choice-option, .stage-choice-primary {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid rgba(241, 201, 107, .36);
+  border-radius: 4px;
+  background: rgba(18, 15, 29, .84);
+  color: var(--paper);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+.stage-choice-option strong, .stage-choice-option small { display: block; }
+.stage-choice-option small { margin-top: 2px; color: #d7d0e2; font-size: 8px; line-height: 1.25; }
+.stage-choice-option:hover:not(:disabled) { border-color: var(--mint); background: rgba(60, 83, 75, .82); }
+.stage-choice-primary { border-color: #edc66c; background: #edc66c; color: #261f2b; font-weight: 800; text-align: center; }
+.stage-choice-primary:hover:not(:disabled) { background: #f7d987; }
+.stage-choice-option:focus-visible, .stage-choice-primary:focus-visible { outline: 2px solid #fff1c9; outline-offset: 2px; }
+.stage-choice-option:disabled, .stage-choice-primary:disabled { opacity: .55; cursor: not-allowed; }
+.stage-choice-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stage-choice-actions > :last-child:nth-child(3) { grid-column: 1 / -1; }
+
 #pet-scene {
   display: block;
   width: 100%;
@@ -766,7 +818,7 @@ h3 { margin-bottom: 0; font-size: 13px; font-weight: 700; }
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.52);
   scrollbar-color: var(--mint) transparent;
 }
-.dungeon-dialog::backdrop { background: rgba(12, 9, 21, 0.88); backdrop-filter: blur(5px); }
+.dungeon-dialog::backdrop { background: rgba(12, 9, 21, 0.72); backdrop-filter: none; }
 .dungeon-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 17px; }
 .dungeon-heading .eyebrow { margin-bottom: 8px; }
 .dungeon-heading h2 { max-width: 700px; margin: 0; font-family: 'Press Start 2P', monospace; font-size: clamp(11px, 1.6vw, 15px); line-height: 1.7; }
@@ -1554,7 +1606,8 @@ body { overscroll-behavior: none; }
   border-bottom: 0;
   box-shadow: 0 -10px 40px rgba(0,0,0,.5);
 }
-.stage-shell .dungeon-dialog::backdrop { background: rgba(11, 9, 18, .16); }
+.stage-shell .dungeon-dialog.is-run-sheet { max-height: min(42dvh, calc(100dvh - 54dvh - env(safe-area-inset-top))); }
+.stage-shell .dungeon-dialog::backdrop { background: rgba(11, 9, 18, .16); backdrop-filter: none; }
 .stage-shell .dungeon-dialog .dungeon-heading { position: sticky; top: -16px; z-index: 2; margin: -16px -18px 12px; padding: 12px 18px 9px; background: #211d32; border-bottom: 1px solid var(--line); }
 .stage-shell .dungeon-dialog .dungeon-content { min-width: 0; }
 .stage-shell .settings-dialog, .stage-shell .gear-dialog, .stage-shell .home-dialog, .stage-shell .minigame-dialog, .stage-shell .dex-dialog { width: min(calc(100vw - 18px), 760px); max-height: 90dvh; border-radius: 10px; }
@@ -1587,6 +1640,7 @@ body { overscroll-behavior: none; }
   .stage-shell .stage-status-strip { min-height: 38px; }
   .stage-shell .stage-action { min-height: 56px; }
   .stage-shell .dungeon-dialog { max-height: 68dvh; }
+  .stage-shell .dungeon-dialog.is-run-sheet { max-height: 48dvh; }
   .stage-shell .dungeon-dialog .dungeon-heading { margin-bottom: 8px; }
   .stage-ticker { flex-basis: 20px; min-height: 20px; font-size: 8px; }
 }

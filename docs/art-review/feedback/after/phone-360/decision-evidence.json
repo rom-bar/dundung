@@ -1,0 +1,28 @@
+{
+  "pass": "after",
+  "project": "phone-360",
+  "backdropFilter": "none",
+  "frameChanged": true,
+  "geometry": {
+    "viewport": {
+      "width": 360,
+      "height": 740
+    },
+    "frame": {
+      "left": 5,
+      "top": 53,
+      "right": 355,
+      "bottom": 375.796875
+    },
+    "card": {
+      "left": 13,
+      "top": 61,
+      "right": 273.515625,
+      "bottom": 242.875
+    },
+    "scrollWidth": 360,
+    "scrollHeight": 740
+  },
+  "cardInsideScene": true,
+  "errors": []
+}
