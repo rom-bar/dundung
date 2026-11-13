@@ -1,6 +1,6 @@
 # Pocket Pal
 
-A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phases 1–7**: the care loop, mini mode, life stages, stats, training, form collection, the endless dungeon, loot-driven equipment, Home meta-progression, daily trials, ascension, challenge modifiers, the Bestiary, and local ghost battles.
+A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phases 1–8**: the care loop, mini mode, life stages, stats, training, form collection, the endless dungeon, loot-driven equipment, Home meta-progression, daily trials, ascension, challenge modifiers, the Bestiary, local ghost battles, onboarding, and final polish.
 
 **Live site:** <https://rom-bar.github.io/dundung/> (available after GitHub Pages is enabled and the first deployment succeeds).
 
@@ -38,6 +38,12 @@ In **Home → Endless**, start one seeded Daily trial per UTC date; your persona
 
 Use **Create my code** to share a bounded, versioned pet snapshot, then validate a code for a friendly deterministic ghost battle. Codes are checked and sanitized locally; battles are capped at 24 turns and never award items, coins, or online rankings. Save schema v6 adds Endless progress; earlier saves migrate automatically.
 
+## Polish and balance (Phase 8)
+
+The optional first-steps guide walks a new player from hatching Pip to opening the Dungeon, explains that time pauses when they leave, and can be dismissed on this device. Hatching gets a short pixel-shell burst and sound cue; level-ups, dungeon milestones, and boss victories use event-driven audio. Scene labels, visible focus, stronger tutorial copy, a subtler CRT overlay, and reduced-motion behavior complete the accessibility pass.
+
+The balance harness simulates 2,000 seeded fresh pets through two dungeon runs using the real game engine. It found a median floor of **18** in the second run; **99.9%** encountered the first boss within two sessions and **65.05%** defeated it. The first run safely banked at floor 9 in **59.7%** of trials; some pets fainted earlier. See the [balance report](docs/phase8-balance.md) for assumptions, floor percentiles, and reach rates.
+
 Use the care buttons or keyboard shortcuts: **1–3** offer the three snacks, **P** plays, **S** toggles sleep, and **C** cleans. On portrait phones, the care buttons stick to the bottom when the care section is in view. Open **Settings** to switch Sound or CRT scanlines, choose button size and opacity, mirror the care controls for a left-handed layout, or enable a short touch haptic. These preferences stay on this device. Buttons act once per press; holding them never repeats a care action. The small hash router uses `#/` for the home screen and `#/about` for the About page, which explains the original-content policy.
 
 ## Run locally
@@ -56,6 +62,7 @@ npm run check
 npm test
 npm run test:e2e
 npm run build
+node scripts/simulate-balance.mjs 2000
 npm run preview
 ```
 
@@ -73,6 +80,7 @@ Gameplay tuning and form definitions live in JSON under `src/data/` rather than 
 - `rules.json` defines need bounds and signal thresholds, per-need signal cooldowns, starting needs, awake/sleeping decay, stage timing and level caps, XP rewards, mini-game durations/scoring/cooldowns, tendency signals, action cooldowns/effects, animation timing, worker/save intervals, and toast queue limits.
 - `evolutions.json` defines the 20 element/archetype forms, rarity weights and pity, care affinities, elemental and archetype stat multipliers, base stats, and level growth. `traits.json` defines passive, mutation, and drawback effects.
 - `dungeon-rules.json`, `rooms.json`, `biomes.json`, `enemies.json`, `skills.json`, and `pet-skills.json` define floor pacing, encounter weights, combat tuning, biome themes, enemies, skills, and drops. `events.json`, `consumables.json`, `tactics.json`, and `loot.json` define event choices, the run pack, combat plans, shops, and treasure-token values.
+- `scripts/simulate-balance.mjs` runs deterministic engine-driven trials, prints boss-access and floor-distribution metrics, and exits nonzero if the Phase 8 targets regress.
 - `items.json`, `affixes.json`, `sets.json`, and `equipment-rules.json` define gear templates, affix effects, set bonuses, rarity/drop weights, upgrade and fusion rules, capacity and materials. Item behavior is generated from seeded state rather than stored as executable code.
 - `home.json` defines the five Home upgrade curves and effects; `achievements.json` defines milestone progress and one-time coin, Essence, and cosmetic rewards.
 - `endless-rules.json` defines UTC Daily seeds and attempts, ascension milestones and effects, challenge modifiers, Bestiary coin tiers, and pet-code / ghost-battle safety limits.
@@ -92,7 +100,7 @@ Mini mode prefers the Document Picture-in-Picture API. If that API is missing or
 
 ## Tests and acceptance checks
 
-`npm run test:unit` covers care, progression, deterministic evolution weights, Home upgrades, achievements, equipment, save migrations through v6, dungeon settlement, Endless rules, pet-code validation, ghost battles, and sprite overlays. `npm run test:e2e` checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for overflow, touch targets, settings, Form Dex, training, Home upgrades, Endless and Bestiary privacy, pet codes, ghost battles, Gear actions, dungeon shops and loot choices, and offline behavior. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) includes real-device checks emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
+`npm run test:unit` covers care, hatch animation state, progression, deterministic evolution weights, Home upgrades, achievements, equipment, save migrations through v6, dungeon settlement, Endless rules, pet-code validation, ghost battles, and sprite overlays. `npm run test:e2e` checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for overflow, touch targets, first-steps onboarding, settings, Form Dex, training, Home upgrades, Endless and Bestiary privacy, pet codes, ghost battles, Gear actions, dungeon shops and loot choices, and offline behavior. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) includes real-device checks emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
 
 ## Original content
 

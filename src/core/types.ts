@@ -249,7 +249,7 @@ export interface GameRecords {
   totalCoinsBanked: number;
 }
 
-export type Animation = 'idle' | 'eat' | 'play' | 'clean' | 'sleep' | 'wake' | 'evolve';
+export type Animation = 'idle' | 'eat' | 'play' | 'clean' | 'sleep' | 'wake' | 'evolve' | 'hatch';
 export type CooldownKey = 'feed' | 'play' | 'clean' | 'sleep';
 export type ActionLabel = CooldownKey | 'train';
 

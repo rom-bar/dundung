@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import dungeonRules from '../src/data/dungeon-rules.json';
 import { advance, applyAction, createInitialState } from '../src/core/game';
 import { calculateDamage, getDungeonData, getElementMultiplier, migrateDungeonProgress, scaleEnemy } from '../src/core/dungeon';
 import { migrateSave } from '../src/core/save';
@@ -103,9 +104,11 @@ describe('Phase 4 dungeon core', () => {
     const boss = enemies.find((enemy) => enemy.id === 'cinder-crown')!;
     const firstFloor = scaleEnemy(common, 1);
     const secondFloor = scaleEnemy(common, 2);
+    const floorOneFactor = Math.pow(dungeonRules.enemyScalingPerFloor, dungeonRules.floorExponent);
     expect(secondFloor.HP).toBeGreaterThan(firstFloor.HP);
-    expect(scaleEnemy(elite, 1).HP).toBe(Math.round(Math.round(elite.stats.HP * 1.09) * 1.6));
-    expect(scaleEnemy(boss, 1).HP).toBe(Math.round(Math.round(boss.stats.HP * 1.09) * 2.5));
+    expect(scaleEnemy(elite, 1).HP).toBe(Math.round(Math.round(elite.stats.HP * floorOneFactor) * dungeonRules.eliteHpMultiplier));
+    expect(scaleEnemy(boss, 1).HP).toBe(Math.round(Math.round(boss.stats.HP * floorOneFactor) * dungeonRules.bossHpMultiplier));
+    expect(scaleEnemy(boss, 1).ATK).toBe(Math.round(Math.round(boss.stats.ATK * floorOneFactor) * dungeonRules.bossAttackMultiplier));
     const challenged = scaleEnemy(common, 1, {
       enemyStatsMultiplier: 1.06,
       enemyHpMultiplier: 1.25,

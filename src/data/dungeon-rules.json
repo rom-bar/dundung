@@ -1,15 +1,15 @@
 {
   "startingFloor": 1,
   "floorExponent": 1,
-  "enemyScalingPerFloor": 1.09,
+  "enemyScalingPerFloor": 1.07,
   "elementalAdvantages": { "fire": "moss", "moss": "water", "water": "fire", "storm": "shadow", "shadow": "storm" },
   "elementAdvantageMultiplier": 1.25,
   "elementDisadvantageMultiplier": 0.8,
   "elementNeutralMultiplier": 1,
   "eliteHpMultiplier": 1.6,
   "eliteAttackMultiplier": 1.2,
-  "bossHpMultiplier": 2.5,
-  "bossAttackMultiplier": 1.3,
+  "bossHpMultiplier": 1.25,
+  "bossAttackMultiplier": 0.9,
   "actionGauge": 100,
   "defenseBase": 100,
   "minimumDamage": 1,
@@ -35,6 +35,6 @@
   "maxStatusesPerTarget": 8,
   "maxRunStatMultiplier": 10,
   "maxRunCoinMultiplier": 10,
-  "xpRewards": { "fight": 5, "elite": 9, "boss": 20 },
+  "xpRewards": { "fight": 12, "elite": 16, "boss": 30 },
   "eventDamageMaxPercent": 0.2
 }

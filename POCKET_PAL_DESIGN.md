@@ -193,7 +193,7 @@ tests/           vitest unit tests for core
 
 ### Enemies
 - `enemies.json` per biome: base stats, element, skill, loot table.
-- Scaling: `stat = base x 1.09^floor`; elite x1.6 HP, x1.2 ATK; boss x2.5 HP, x1.3 ATK with a phase-2 ability.
+- Phase 8 release scaling: `stat = base x 1.07^floor`; elite x1.6 HP, x1.2 ATK; boss x1.25 HP, x0.9 ATK with a phase-2 ability. See the calibration table below for the reasoning and results.
 
 ### Resources and care inside the dungeon
 - Per room: hunger -1; per fight: energy -2.
@@ -324,12 +324,16 @@ tests/           vitest unit tests for core
 | Need decay per active minute | hunger 3, happiness 2, energy 2, hygiene 1.5 | Tune for 5-15 min sessions |
 | Stage durations (active min) | 1 / 15 / 45 / 120 / 60 | About 4 h per generation |
 | XP curve | 20 x 1.18^(L-1) | Adjust growth factor |
-| Enemy scaling | 1.09^floor | Core difficulty slope |
+| Enemy scaling | 1.07^floor | Phase 8 tuned slope; core difficulty still compounds with depth |
+| Dungeon XP rewards | 12 / 16 / 30 (fight / elite / boss) | Early levels help fresh pets reach the first boss in two runs |
+| Boss multipliers | 1.25× HP / 0.9× ATK | Keeps the floor-10 milestone reachable without flattening later floors |
 | Gear scaling | 0.06 per ilvl | Must outpace or match enemy slope early |
 | Rarity weights | 60/25/10/4/1 | LUK shifts upward |
 | Rest heal | 30% max HP | Controls run length |
 | Faint penalty | 50% coins, half loot | Tension vs frustration |
 | Home upgrade cost | 50 x 1.6^level | Sink for coins |
+
+Phase 8 calibrates these values with 2,000 seeded, engine-driven fresh-pet trials. The assumptions, output distribution, and reproducible command are recorded in [`docs/phase8-balance.md`](docs/phase8-balance.md).
 
 ## Phase dependency summary
 

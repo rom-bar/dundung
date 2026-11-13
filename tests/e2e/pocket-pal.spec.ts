@@ -52,6 +52,91 @@ async function installDungeonFixture(page: import('@playwright/test').Page, phas
   }, phase);
 }
 
+async function installHatchedFixture(page: import('@playwright/test').Page): Promise<void> {
+  await page.addInitScript(() => {
+    const workerPrototype = Worker.prototype as unknown as { postMessage: (...args: any[]) => void };
+    const originalPostMessage = workerPrototype.postMessage;
+    workerPrototype.postMessage = function (this: Worker, message: any, ...options: any[]) {
+      const loadMessage = message as { type?: string; state?: Record<string, any> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const state = loadMessage.state;
+        const evolution = state.evolution as Record<string, unknown>;
+        loadMessage.state = {
+          ...state,
+          stage: 'baby',
+          stageSeconds: 0,
+          paused: false,
+          sleeping: false,
+          evolution: { ...evolution, formId: 'fire-emberguard' },
+          formDex: ['fire-emberguard'],
+        };
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  });
+}
+
+test('saved progress is loaded before first-steps guidance is shown', async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalPostMessage = Worker.prototype.postMessage;
+    (window as any).__pendingGameLoad = null;
+    (window as any).__gameWorker = null;
+    (window as any).__releasedGameLoad = false;
+    Worker.prototype.postMessage = function (message: any, ...options: any[]) {
+      if (message?.type === 'load' && !(window as any).__releasedGameLoad) {
+        (window as any).__pendingGameLoad = message;
+        (window as any).__gameWorker = this;
+        return;
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  });
+  await page.goto('/');
+  const slot = page.locator('#getting-started-slot');
+  await expect(slot).toContainText('Checking your saved world…');
+  await expect(slot).not.toContainText('Hatch Pip');
+
+  const loadCaptured = await page.evaluate(() => Boolean((window as any).__pendingGameLoad?.state));
+  expect(loadCaptured).toBe(true);
+  await page.evaluate(() => {
+    const message = (window as any).__pendingGameLoad;
+    message.state.stage = 'baby';
+    message.state.evolution.formId = 'fire-emberguard';
+    message.state.dungeon.runsCompleted = 1;
+    message.state.paused = false;
+    (window as any).__releasedGameLoad = true;
+    (window as any).__gameWorker.postMessage(message);
+  });
+  await expect(page.locator('[data-need-value="hunger"]')).not.toHaveText('—');
+  await expect(slot).toBeHidden();
+  await expect(page.getByTestId('first-steps-guide')).toHaveCount(0);
+});
+
+test('first-steps guide follows a fresh egg, and its dismissal persists', async ({ page }) => {
+  await openFreshGame(page);
+  const guide = page.getByTestId('first-steps-guide');
+  await expect(guide).toBeVisible();
+  await expect(guide).toContainText('Hatch Pip');
+  await expect(guide).toContainText('Spend one active minute');
+  await expect(page.locator('#pet-scene')).toHaveAttribute('aria-label', 'Pip’s egg resting in the cave habitat.');
+
+  await guide.getByRole('button', { name: 'Hide guide' }).click();
+  await expect(page.getByTestId('first-steps-guide')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('first-steps-guide')).toHaveCount(0);
+});
+
+test('first-steps guide opens the first dungeon after hatching', async ({ page }) => {
+  await installHatchedFixture(page);
+  await openFreshGame(page);
+  const guide = page.getByTestId('first-steps-guide');
+  await expect(guide.locator('.guide-step[aria-current="step"]')).toContainText('Take a first descent');
+  await expect(guide).toContainText('leave at any floor to bank your finds');
+  await guide.getByRole('button', { name: 'Open Dungeon' }).click();
+  await expect(page.getByTestId('dungeon-start')).toBeVisible();
+  await expect(page.getByTestId('dungeon-start')).toBeEnabled();
+});
+
 test('care targets fit the viewport and meet touch size on every device', async ({ page }, testInfo) => {
   await openFreshGame(page);
   const dimensions = await page.evaluate(() => ({

@@ -85,6 +85,8 @@ describe('care-loop simulation', () => {
     const hatched = runFor(createInitialState(9), 60);
     expect(hatched.stage).toBe('baby');
     expect(hatched.activeSeconds).toBeCloseTo(60, 5);
+    expect(hatched.animation).toBe('hatch');
+    expect(hatched.animationRemainingSeconds).toBeCloseTo(rules.animationSeconds.hatch, 5);
     expect(hatched.evolution.formId).not.toBeNull();
     expect(hatched.tendencies.play).toBe(0);
   });

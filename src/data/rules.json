@@ -52,6 +52,6 @@
     "play": { "happiness": 18, "energy": -8, "hygiene": -1 },
     "clean": { "hygiene": 30 }
   },
-  "animationSeconds": { "eat": 1.2, "play": 1.6, "clean": 1.1, "sleep": 1.4, "wake": 1.1, "evolve": 2.4 },
+  "animationSeconds": { "eat": 1.2, "play": 1.6, "clean": 1.1, "sleep": 1.4, "wake": 1.1, "evolve": 2.4, "hatch": 1.5 },
   "notifications": { "toastDurationSeconds": 2.8, "maximumQueueLength": 6 }
 }

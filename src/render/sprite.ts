@@ -1,6 +1,7 @@
 import type { GameState } from '../core/types';
 import { getMood } from '../core/game';
 import evolutions from '../data/evolutions.json';
+import rules from '../data/rules.json';
 import { getFormDefinition } from '../core/progression';
 
 const width = 240;
@@ -83,6 +84,14 @@ function drawEgg(ctx: CanvasRenderingContext2D, cx: number, top: number, frame: 
   rect(ctx, x + 13, top + 26, 4, 5, colors.deep);
   rect(ctx, x + 27, top + 26, 4, 5, colors.deep);
   rect(ctx, x + 17, top + 35, 10, 3, colors.honeyShade);
+}
+
+function drawHatchBurst(ctx: CanvasRenderingContext2D, cx: number, top: number, progress: number, reducedMotion: boolean): void {
+  const distance = reducedMotion ? 0 : Math.max(0, Math.min(1, progress)) * 9;
+  rect(ctx, cx - 32 - distance, top + 20 - distance, 5, 5, colors.honey);
+  rect(ctx, cx + 27 + distance, top + 26 + distance, 5, 5, colors.cream);
+  rect(ctx, cx - 27 - distance / 2, top + 42 + distance, 4, 4, colors.honeyShade);
+  rect(ctx, cx + 25 + distance / 2, top + 16 - distance, 4, 4, colors.mint);
 }
 
 function drawGearOverlays(ctx: CanvasRenderingContext2D, x: number, y: number, state: GameState): void {
@@ -229,11 +238,13 @@ export function drawPetScene(
   const animationActive = state.animationRemainingSeconds > 0;
   const bouncing = animationActive && (state.animation === 'play' || state.animation === 'wake');
   const eating = animationActive && state.animation === 'eat';
+  const hatching = animationActive && state.animation === 'hatch';
   const frame = Math.floor(animationTime * (bouncing ? 8 : 2));
-  const petTop = 83 + (bouncing ? Math.sin(animationTime * 14) * 5 : eating ? 2 : 0);
+  const petTop = 83 + (bouncing ? Math.sin(animationTime * 14) * 5 : hatching && !reducedMotion ? Math.sin(animationTime * 8) * 2 : eating ? 2 : 0);
 
   if (state.stage === 'egg') drawEgg(ctx, 120, petTop + 1, frame);
   else drawBaby(ctx, 120, petTop, frame, state.sleeping || state.animation === 'sleep', state);
+  if (hatching) drawHatchBurst(ctx, 120, petTop, 1 - state.animationRemainingSeconds / rules.animationSeconds.hatch, reducedMotion);
   drawSignal(ctx, state);
 
   if (state.animation === 'evolve' && state.animationRemainingSeconds > 0) {

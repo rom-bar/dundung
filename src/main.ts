@@ -59,8 +59,19 @@ const actionAnimations: Record<string, SoundKind> = {
   clean: 'clean',
   sleep: 'sleep',
 };
+const actionSounds: Partial<Record<GameAction['type'], SoundKind>> = {
+  'mini-game-complete': 'play',
+  'dungeon-start-run': 'enter',
+  'dungeon-open-treasure': 'loot',
+  'dungeon-resolve-item': 'loot',
+  'dungeon-descend': 'descend',
+  'dungeon-leave': 'bank',
+  'home-upgrade': 'level',
+  'endless-ascend': 'victory',
+};
 const storedMute = readSetting('pocket-pal-muted', false);
 const storedCrt = readSetting('pocket-pal-crt', false);
+let onboardingDismissed = readSetting('pocket-pal-onboarding-dismissed', false);
 const controlSizes = ['small', 'medium', 'large'] as const;
 type ControlSize = (typeof controlSizes)[number];
 let controlSize = readControlSize();
@@ -78,6 +89,7 @@ let lastSavedLabel = 'Save stays on this device';
 let toastTimeout = 0;
 const toastQueue: string[] = [];
 let toastVisible = false;
+const pendingActions: GameAction[] = [];
 let saveRequestId = 0;
 let pendingInstall: BeforeInstallPromptEvent | null = null;
 let installButton: HTMLButtonElement | null = null;
@@ -131,6 +143,10 @@ root.innerHTML = `
         </div>
         <div class="day-marker"><span class="day-spark" aria-hidden="true">✦</span><span id="active-clock">0 min together</span></div>
       </section>
+
+      <div id="getting-started-slot" class="guide-slot-loading" aria-live="polite" aria-busy="true">
+        <span class="guide-loading-mark" aria-hidden="true"></span><span>Checking your saved world…</span>
+      </div>
 
       <div class="play-layout">
         <section class="habitat-panel" aria-label="Pip's cave habitat">
@@ -1179,6 +1195,49 @@ function describeSignals(current: GameState): string {
   return signals.length ? needCopy[signals[0]!] : 'Pip is happy to have you here.';
 }
 
+function renderGettingStarted(current: GameState): string {
+  if (onboardingDismissed || current.dungeon.runsCompleted > 0) return '';
+
+  const hatched = current.stage !== 'egg';
+  const inFirstRun = Boolean(current.dungeon.activeRun);
+  const canOpenDungeon = hatched && Boolean(current.evolution.formId) && !current.sleeping && !current.paused;
+  const stepTwoCopy = inFirstRun
+    ? 'Your first descent is underway. Choose a room, pick a tactic before fights, then bank safely at a floor stop.'
+    : !hatched
+      ? 'After Pip hatches, open Dungeon to set out. You can leave at any floor to bank your finds.'
+      : current.sleeping
+        ? 'Wake Pip, then open Dungeon to choose a route. You can leave at any floor to bank your finds.'
+        : 'Open Dungeon, choose a route and start. You can leave at any floor to bank your finds.';
+  const mobileGuideCopy = inFirstRun
+    ? 'Choose rooms and tactics, then bank at a floor stop. Time pauses when you leave.'
+    : !hatched
+      ? 'Spend one active minute to hatch. Afterward, open Dungeon and bank at a floor stop.'
+      : current.sleeping
+        ? 'Wake Pip, then open Dungeon. Bank at a floor stop and return any time.'
+        : 'Open Dungeon to begin. Bank at a floor stop; time pauses when you leave.';
+  const stepTwoAction = inFirstRun
+    ? '<button class="quiet-button" type="button" data-guide-action="dungeon">Return to Dungeon</button>'
+    : canOpenDungeon
+      ? '<button class="quiet-button" type="button" data-guide-action="dungeon">Open Dungeon</button>'
+      : `<span class="guide-unlock-note">${!hatched ? 'Opens after hatching' : current.sleeping ? 'Wake Pip first' : 'Pip is not ready yet'}</span>`;
+
+  return `<section class="getting-started" data-testid="first-steps-guide" aria-labelledby="getting-started-title">
+    <div class="guide-heading"><h2 id="getting-started-title">A first little adventure</h2><p>Two small steps to Pip’s first descent.</p></div>
+    <p class="guide-mobile-summary">${mobileGuideCopy}</p>
+    <ol class="guide-step-list">
+      <li class="guide-step ${hatched ? 'is-complete' : 'is-current'}" ${hatched ? '' : 'aria-current="step"'}>
+        <span class="guide-step-mark" aria-hidden="true">${hatched ? '<span class="guide-check"></span>' : '1'}</span>
+        <span><strong>Hatch Pip</strong><small>${hatched ? 'Pip has hatched. Time pauses when you leave.' : 'Spend one active minute together. Time pauses when you leave.'}</small></span>
+      </li>
+      <li class="guide-step ${hatched ? 'is-current' : 'is-upcoming'}" ${hatched ? 'aria-current="step"' : ''}>
+        <span class="guide-step-mark" aria-hidden="true">2</span>
+        <span><strong>Take a first descent</strong><small>${stepTwoCopy}</small></span>
+      </li>
+    </ol>
+    <div class="guide-actions">${stepTwoAction}<button class="quiet-button" type="button" data-guide-action="dismiss">Hide guide</button></div>
+  </section>`;
+}
+
 function hasFocusedField(dialog: HTMLDialogElement): boolean {
   const active = document.activeElement;
   return active instanceof HTMLElement && dialog.contains(active) && active.matches('input, textarea, select');
@@ -1213,6 +1272,9 @@ function updateControls(current: GameState): void {
     ? `Hatching in ${remaining}`
     : `Growing into ${nextStageNames[current.stage]} in ${remaining}`;
   must<HTMLHeadingElement>('#pet-heading').textContent = form?.name ?? (current.stage === 'egg' ? 'A quiet place to grow' : 'Hello, little friend');
+  canvas.setAttribute('aria-label', current.stage === 'egg'
+    ? 'Pip’s egg resting in the cave habitat.'
+    : `${form?.name ?? 'Pip'} is ${current.sleeping ? 'sleeping' : 'resting'} in the cave habitat.`);
   must<HTMLSpanElement>('#active-clock').textContent = `${Math.floor(current.activeSeconds / 60)} min together`;
 
   const mood = getMood(current);
@@ -1241,6 +1303,13 @@ function updateControls(current: GameState): void {
   });
 
   renderGrowthSummary(current);
+  const gettingStarted = must<HTMLElement>('#getting-started-slot');
+  const gettingStartedMarkup = renderGettingStarted(current);
+  if (gettingStarted.innerHTML !== gettingStartedMarkup) gettingStarted.innerHTML = gettingStartedMarkup;
+  gettingStarted.classList.remove('guide-slot-loading');
+  gettingStarted.removeAttribute('aria-live');
+  gettingStarted.setAttribute('aria-busy', 'false');
+  gettingStarted.hidden = !gettingStartedMarkup;
   const miniGameButton = must<HTMLButtonElement>('#minigames-open');
   const waitingForHatch = current.stage === 'egg';
   const trainingCooling = current.miniGameCooldownSeconds > 0;
@@ -1297,6 +1366,7 @@ function pauseAndSave(): void {
 
 function sendAction(action: GameAction): void {
   if (!state || state.paused) return;
+  pendingActions.push(action);
   worker.postMessage({ type: 'action', action });
 }
 
@@ -1306,6 +1376,8 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
     const previousStage = state?.stage;
     const previousForm = state?.evolution.formId;
     const previousGeneration = state?.generation;
+    const previousLevel = state?.level;
+    const previousBossesDefeated = state?.records.bossesDefeated;
     const previousAchievements = new Set(state?.home.unlockedAchievementIds ?? []);
     state = message.state;
     updateControls(state);
@@ -1313,16 +1385,25 @@ function onWorkerMessage(event: MessageEvent<WorkerOutMessage>): void {
       showToast('A new egg has begun the next little story.');
     } else if (previousStage === 'egg' && state.stage === 'baby') {
       showToast(`Pip hatched as ${getFormDefinition(state.evolution.formId)?.name ?? 'a new friend'}!`);
+      playSound('hatch', muted);
     } else if (previousForm && state.evolution.formId && previousForm !== state.evolution.formId) {
       showToast(`Pip grew into ${getFormDefinition(state.evolution.formId)?.name ?? 'a new form'}.`);
+      playSound('level', muted);
+    } else if (previousLevel !== undefined && state.level > previousLevel) {
+      playSound('level', muted);
     }
+    if (previousBossesDefeated !== undefined && state.records.bossesDefeated > previousBossesDefeated) playSound('victory', muted);
     const newAchievements = getAchievementStatuses(state).filter((achievement) => achievement.unlocked && !previousAchievements.has(achievement.id));
     if (newAchievements.length) showToast(`Achievement unlocked: ${newAchievements.map((achievement) => achievement.title).join(', ')}.`);
   } else if (message.type === 'action-result') {
+    const requestedAction = pendingActions.shift();
     showToast(message.result.message);
     miniMode.setMessage(message.result.message);
-    if (message.result.accepted && message.result.action) {
-      const kind = message.result.action === 'sleep' && state?.sleeping ? 'wake' : actionAnimations[message.result.action];
+    if (message.result.accepted) {
+      const kind = requestedAction?.type === 'toggle-sleep'
+        ? (state?.sleeping ? 'wake' : 'sleep')
+        : (message.result.action ? actionAnimations[message.result.action] : undefined)
+          ?? (requestedAction ? actionSounds[requestedAction.type] : undefined);
       if (kind) playSound(kind, muted);
     }
   } else if (message.type === 'signals') {
@@ -1402,7 +1483,16 @@ crtToggle.addEventListener('click', () => {
 root.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!button) return;
-  if (button.dataset.action) {
+  if (button.dataset.guideAction === 'dismiss') {
+    onboardingDismissed = true;
+    writeSetting('pocket-pal-onboarding-dismissed', onboardingDismissed);
+    if (state) updateControls(state);
+  } else if (button.dataset.guideAction === 'dungeon') {
+    if (state && !button.disabled) {
+      renderDungeon(state);
+      dungeonDialog.showModal();
+    }
+  } else if (button.dataset.action) {
     activateCareButton(button);
   } else if (button.id === 'mini-mode-button') {
     void miniMode.enter().then((opened) => {

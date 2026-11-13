@@ -131,7 +131,10 @@ function advanceCore(state: GameState, dtMs: number): GameState {
     sleeping: false,
   };
   const evolved = evolveForStage(next);
-  return advanceDungeon({ ...evolved, tendencies: { ...emptyTendencies() } }, stepSeconds);
+  const transition = state.stage === 'egg'
+    ? { ...evolved, animation: 'hatch' as const, animationRemainingSeconds: rules.animationSeconds.hatch }
+    : evolved;
+  return advanceDungeon({ ...transition, tendencies: { ...emptyTendencies() } }, stepSeconds);
 }
 
 export function advance(state: GameState, dtMs: number): GameState {
