@@ -9,9 +9,13 @@ import { loadGame, saveGame } from './platform/storage';
 import { attachTouchControls } from './platform/touch-controls';
 import { createMiniMode } from './platform/mini-mode';
 import { getAllForms, getEffectiveStats, getFormDefinition, getLevelCap, getTraitList, xpToNextLevel } from './core/progression';
+import { getBiomeForFloor, getDungeonData } from './core/dungeon';
+import type { DungeonRoomType, DungeonRunState } from './core/types';
 import evolutions from './data/evolutions.json';
+import dungeonRules from './data/dungeon-rules.json';
 import './style.css';
 
+const dungeonData = getDungeonData();
 const root = document.querySelector<HTMLDivElement>('#app');
 if (!root) throw new Error('Pocket Pal could not find its app root.');
 
@@ -56,6 +60,7 @@ let toastVisible = false;
 let saveRequestId = 0;
 let pendingInstall: BeforeInstallPromptEvent | null = null;
 let installButton: HTMLButtonElement | null = null;
+let selectedDungeonPack: string[] = [];
 
 root.innerHTML = `
   <div class="app-shell">
@@ -68,10 +73,13 @@ root.innerHTML = `
         <button class="quiet-button" id="mini-mode-button" type="button" aria-label="Open mini mode" title="Open mini mode">
           <span class="button-icon" aria-hidden="true">▣</span><span>Mini</span>
         </button>
-        <button class="quiet-button" id="forms-open" type="button" aria-haspopup="dialog" aria-controls="dex-dialog" data-testid="forms-open">
+        <button class="quiet-button" id="dungeon-open" type="button" aria-label="Dungeon" aria-haspopup="dialog" aria-controls="dungeon-dialog" data-testid="dungeon-open" disabled>
+          <span class="button-icon" aria-hidden="true">⌁</span><span>Dungeon</span>
+        </button>
+        <button class="quiet-button" id="forms-open" type="button" aria-label="Forms" aria-haspopup="dialog" aria-controls="dex-dialog" data-testid="forms-open">
           <span class="button-icon" aria-hidden="true">✧</span><span>Forms</span>
         </button>
-        <button class="quiet-button" id="settings-open" type="button" aria-haspopup="dialog" aria-controls="settings-dialog" data-testid="settings-open">
+        <button class="quiet-button" id="settings-open" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings-dialog" data-testid="settings-open">
           <span class="button-icon" aria-hidden="true">⚙</span><span>Settings</span>
         </button>
         <button class="quiet-button" id="about-open" type="button" aria-haspopup="dialog">About</button>
@@ -133,13 +141,13 @@ root.innerHTML = `
             <div class="food-grid" id="food-actions"></div>
           </div>
           <div class="action-grid">
-            <button class="action-button" type="button" data-action="play" data-testid="action-play" aria-label="Play with Pip">
+            <button class="action-button" type="button" data-action="play" data-testid="action-play">
               <span class="action-glyph play-glyph" aria-hidden="true">✦</span><span class="action-name">Play</span><span class="action-detail">A happy wiggle</span>
             </button>
-            <button class="action-button" type="button" data-action="toggle-sleep" data-testid="action-sleep" aria-label="Tuck Pip in or wake Pip">
+            <button class="action-button" type="button" data-action="toggle-sleep" data-testid="action-sleep">
               <span class="action-glyph sleep-glyph" aria-hidden="true">☾</span><span class="action-name" id="sleep-label">Tuck in</span><span class="action-detail" id="sleep-detail">Rest a little</span>
             </button>
-            <button class="action-button" type="button" data-action="clean" data-testid="action-clean" aria-label="Clean Pip">
+            <button class="action-button" type="button" data-action="clean" data-testid="action-clean">
               <span class="action-glyph clean-glyph" aria-hidden="true">✧</span><span class="action-name">Clean</span><span class="action-detail">A freshen-up</span>
             </button>
           </div>
@@ -234,6 +242,13 @@ root.innerHTML = `
       </div>
       <div id="minigame-stage" class="minigame-stage" hidden></div>
     </dialog>
+    <dialog class="dungeon-dialog" id="dungeon-dialog" aria-labelledby="dungeon-title">
+      <div class="dungeon-heading">
+        <div><p class="eyebrow">A path made for brave little paws</p><h2 id="dungeon-title">The Endless Descent</h2></div>
+        <button class="dialog-close" id="dungeon-close" type="button" aria-label="Close dungeon">×</button>
+      </div>
+      <div class="dungeon-content" id="dungeon-content" aria-live="polite"></div>
+    </dialog>
   </div>
 `;
 
@@ -252,6 +267,8 @@ const hapticsInput = must<HTMLInputElement>('#haptics-toggle');
 const controlOpacityInput = must<HTMLInputElement>('#control-opacity');
 const controlOpacityValue = must<HTMLOutputElement>('#control-opacity-value');
 const dexDialog = must<HTMLDialogElement>('#dex-dialog');
+const dungeonDialog = must<HTMLDialogElement>('#dungeon-dialog');
+const dungeonContent = must<HTMLDivElement>('#dungeon-content');
 const minigameDialog = must<HTMLDialogElement>('#minigame-dialog');
 const minigameStatus = must<HTMLParagraphElement>('#minigame-status');
 const minigameChoices = must<HTMLDivElement>('#minigame-choices');
@@ -411,12 +428,152 @@ function renderFormDex(current: GameState): void {
   hallList.innerHTML = current.hallOfPets.length
     ? current.hallOfPets.map((pet) => {
       const form = getFormDefinition(pet.formId);
-      return `<div class="hall-entry"><strong>${pet.name}</strong> · Generation ${pet.generation} · ${form?.name ?? 'Unformed'} · peak Lv ${pet.peakLevel}</div>`;
+      return `<div class="hall-entry"><strong>${pet.name}</strong> · Generation ${pet.generation} · ${form?.name ?? 'Unformed'} · peak Lv ${pet.peakLevel} · deepest floor ${pet.deepestFloor}</div>`;
     }).join('')
     : '<p class="hall-empty">Past pets will find a place here after their long life.</p>';
   evolutionStoneButton.hidden = current.evolution.evolutionStones < 1 || !current.evolution.formId;
   evolutionStoneButton.disabled = current.paused;
   evolutionStoneButton.textContent = `Use Evolution Stone (${current.evolution.evolutionStones})`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character] ?? character);
+}
+
+function healthMeter(label: string, value: number, maximum: number, kind: string): string {
+  const percent = Math.max(0, Math.min(100, Math.round((value / Math.max(1, maximum)) * 100)));
+  return `<div class="dungeon-meter dungeon-meter-${kind}" role="progressbar" aria-label="${escapeHtml(label)}" aria-valuemin="0" aria-valuemax="${Math.round(maximum)}" aria-valuenow="${Math.round(value)}"><span style="width:${percent}%"></span><small>${escapeHtml(label)} · ${Math.round(value)} / ${Math.round(maximum)}</small></div>`;
+}
+
+const roomPresentation: Record<DungeonRoomType, { title: string; detail: string; mark: string }> = {
+  fight: { title: 'Skirmish', detail: 'A quick auto-fight and a handful of coins.', mark: '✦' },
+  elite: { title: 'Elite', detail: 'A tougher foe with a brighter reward.', mark: '◆' },
+  event: { title: 'Event', detail: 'Choose a little risk or a little reward.', mark: '☼' },
+  treasure: { title: 'Treasure', detail: 'Open a chest for run coins and a chance at a token.', mark: '▣' },
+  rest: { title: 'Rest', detail: 'Restore health and a little energy.', mark: '☾' },
+  shop: { title: 'Shop', detail: 'Spend run coins on a pack item.', mark: '⌂' },
+  boss: { title: 'Boss', detail: 'A single room with a two-part challenge.', mark: '♛' },
+};
+
+function renderPack(run: DungeonRunState): string {
+  if (!run.consumables.length) return '<p class="pack-empty">Your pack is empty. Look for a shop or event on the next floor.</p>';
+  return `<div class="dungeon-pack-list">${run.consumables.map((id, slot) => {
+    const item = dungeonData.consumables.find((candidate) => candidate.id === id);
+    if (!item) return '';
+    return `<button class="pack-item" type="button" data-run-action="use" data-slot="${slot}" aria-label="Use ${escapeHtml(item.name)}"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description)}</small></span><span class="pack-use">Use</span></button>`;
+  }).join('')}</div>`;
+}
+
+function renderDungeonStart(current: GameState): string {
+  const active = current.stage !== 'egg' && !current.sleeping && Boolean(current.evolution.formId);
+  const items = dungeonData.consumables.map((item) => `
+    <label class="pack-choice">
+      <input type="checkbox" data-pack-item value="${escapeHtml(item.id)}" ${selectedDungeonPack.includes(item.id) ? 'checked' : ''} />
+      <span class="pack-choice-mark" aria-hidden="true">✦</span>
+      <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description)}</small></span>
+    </label>`).join('');
+  const reason = current.stage === 'egg' || !current.evolution.formId
+    ? 'Pip can enter after hatching.'
+    : current.sleeping
+      ? 'Wake Pip before setting out.'
+      : 'Choose up to three run-only items. Unused items leave with the run.';
+  return `<div class="dungeon-start-grid">
+    <section class="dungeon-start-story"><p class="eyebrow">A new route every time</p><h3>Make a small plan, then see how far Pip can go.</h3><p>${escapeHtml(reason)}</p>
+      <div class="dungeon-records"><span><strong>${current.dungeon.coins}</strong><small>banked coins</small></span><span><strong>${current.dungeon.petDeepestFloor}</strong><small>this pet's best floor</small></span><span><strong>${current.dungeon.deepestFloor}</strong><small>all-time best</small></span></div>
+      <p class="dungeon-note">Coins and treasure are banked when Pip leaves or faints. Fainting keeps half the coins and a random half of the tokens.</p>
+    </section>
+    <section class="pack-picker" aria-labelledby="pack-title"><div class="dungeon-section-heading"><div><p class="eyebrow">Before the first step</p><h3 id="pack-title">Pack up to 3 items</h3></div><span class="pack-count" id="pack-count">0 / 3</span></div>
+      <div class="pack-choice-list">${items}</div>
+      <button class="primary-button dungeon-start-button" type="button" data-run-action="start" data-testid="dungeon-start" ${active ? '' : 'disabled'}>Start a run</button>
+    </section>
+  </div>`;
+}
+
+function bindDungeonStartControls(current: GameState): void {
+  const startButton = dungeonContent.querySelector<HTMLButtonElement>('[data-run-action="start"]');
+  if (startButton) startButton.disabled = current.paused || current.stage === 'egg' || current.sleeping || !current.evolution.formId;
+  const packChecks = [...dungeonContent.querySelectorAll<HTMLInputElement>('[data-pack-item]')];
+  const packCount = dungeonContent.querySelector<HTMLElement>('#pack-count');
+  const refreshPackCount = () => {
+    const selectedChecks = packChecks.filter((check) => check.checked);
+    selectedDungeonPack = selectedChecks.map((check) => check.value);
+    const selected = selectedChecks.length;
+    if (packCount) packCount.textContent = `${selected} / ${dungeonRules.packSlots}`;
+    packChecks.forEach((check) => { check.disabled = !check.checked && selected >= dungeonRules.packSlots; });
+  };
+  packChecks.forEach((check) => check.addEventListener('change', refreshPackCount));
+  refreshPackCount();
+}
+
+function renderDungeon(current: GameState): void {
+  const run = current.dungeon.activeRun;
+  if (!run) {
+    dungeonContent.innerHTML = renderDungeonStart(current);
+    bindDungeonStartControls(current);
+    return;
+  }
+  selectedDungeonPack = [];
+
+  const biome = dungeonData.biomes.find((item) => item.id === run.biomeId) ?? getBiomeForFloor(run.floor);
+  const roomCount = run.floor % dungeonData.rooms.bossEveryFloors === 0 ? 1 : dungeonData.rooms.roomsPerFloor;
+  const nodes = Array.from({ length: roomCount }, (_, index) => {
+    const currentNode = index === run.roomIndex && run.phase !== 'floor-end' && run.phase !== 'summary';
+    const cleared = index < run.roomIndex || (run.phase === 'summary' && run.result === 'left');
+    const label = currentNode && run.currentRoom ? roomPresentation[run.currentRoom].title : cleared ? 'Cleared' : `Room ${index + 1}`;
+    return `<li class="path-node${currentNode ? ' is-current' : ''}${cleared ? ' is-cleared' : ''}" aria-current="${currentNode ? 'step' : 'false'}"><span class="path-node-mark">${cleared ? '✓' : currentNode && run.currentRoom ? roomPresentation[run.currentRoom].mark : index + 1}</span><span>${escapeHtml(label)}</span></li>`;
+  }).join('');
+  const runStats = Object.entries(run.runStatMultipliers)
+    .filter(([, multiplier]) => Math.abs(multiplier - 1) > 0.001)
+    .map(([key, multiplier]) => `${key} ×${multiplier.toFixed(2)}`);
+  const modifiers = [
+    ...runStats,
+    ...(Math.abs(run.coinMultiplier - 1) > 0.001 ? [`Coins ×${run.coinMultiplier.toFixed(2)}`] : []),
+  ];
+
+  let stage = '';
+  if (run.phase === 'choice') {
+    stage = `<section class="dungeon-decision"><p class="eyebrow">Choose the next room</p><h3>Which path feels right?</h3><div class="room-choice-list">${run.roomChoices.map((type) => {
+      const item = roomPresentation[type];
+      return `<button class="room-choice" type="button" data-run-action="room" data-room-type="${type}" data-testid="room-${type}"><span class="room-choice-mark" aria-hidden="true">${item.mark}</span><span><strong>${item.title}</strong><small>${item.detail}</small></span><span class="room-choice-prompt">Choose</span></button>`;
+    }).join('')}</div></section>`;
+  } else if (run.phase === 'tactic' && run.enemy) {
+    const enemy = run.enemy;
+    stage = `<section class="dungeon-decision"><p class="eyebrow">Before the fight</p><h3>${escapeHtml(enemy.name)} is ready</h3>${healthMeter(`${enemy.name} health`, enemy.hp, enemy.maxHp, 'enemy')}<p class="dungeon-body-copy">Pick one tactic. Pip's moves then play out automatically.</p><div class="tactic-grid">${dungeonData.tactics.map((tactic) => `<button class="tactic-choice" type="button" data-run-action="tactic" data-tactic-id="${escapeHtml(tactic.id)}" data-testid="tactic-${escapeHtml(tactic.id)}"><strong>${escapeHtml(tactic.name)}</strong><small>${escapeHtml(tactic.description)}</small></button>`).join('')}</div></section>`;
+  } else if (run.phase === 'combat' && run.enemy) {
+    const enemy = run.enemy;
+    const enemyGauge = Math.min(100, Math.round((enemy.gauge / dungeonRules.actionGauge) * 100));
+    const petGauge = Math.min(100, Math.round((run.petGauge / dungeonRules.actionGauge) * 100));
+    stage = `<section class="dungeon-fight" data-testid="dungeon-fight"><p class="eyebrow">Auto-fight · Floor ${run.floor}</p><div class="combat-versus"><div class="combatant combatant-pet"><span class="combatant-mark" aria-hidden="true">✦</span><strong>Pip</strong>${healthMeter('Pip health', run.petHp, run.petMaxHp, 'pet')}<div class="gauge-track" role="progressbar" aria-label="Pip action gauge" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${petGauge}"><span style="width:${petGauge}%"></span><small>Next move</small></div></div><span class="versus-mark" aria-hidden="true">✕</span><div class="combatant combatant-enemy"><span class="combatant-mark" aria-hidden="true">${roomPresentation[enemy.kind].mark}</span><strong>${escapeHtml(enemy.name)}</strong>${healthMeter(`${enemy.name} health`, enemy.hp, enemy.maxHp, 'enemy')}<div class="gauge-track gauge-enemy" role="progressbar" aria-label="${escapeHtml(enemy.name)} action gauge" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${enemyGauge}"><span style="width:${enemyGauge}%"></span><small>Next move</small></div></div></div><div class="combat-effect-row">${run.petStatuses.map((status) => `<span class="effect-chip">${status.type === 'buff' ? `${status.stat} boost` : status.type} · ${status.turns}</span>`).join('')}${enemy.phaseTwoTriggered ? '<span class="effect-chip is-boss">New boss move</span>' : ''}</div><ol class="combat-log" role="log" aria-label="Combat log" aria-live="polite">${run.combatLog.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ol><p class="dungeon-body-copy">The gauges fill from speed. Care still matters while Pip is inside.</p></section>`;
+  } else if (run.phase === 'event' && run.eventId) {
+    const event = dungeonData.events.find((item) => item.id === run.eventId);
+    stage = event ? `<section class="dungeon-decision event-scene"><p class="eyebrow">A small story on the path</p><h3>${escapeHtml(event.title)}</h3><p class="dungeon-body-copy">${escapeHtml(event.description)}</p><div class="event-options">${event.options.map((option) => `<button class="event-option" type="button" data-run-action="event" data-option-id="${escapeHtml(option.id)}"><strong>${escapeHtml(option.label)}</strong><small>${Math.round(option.successChance * 100)}% chance to go well</small></button>`).join('')}</div></section>` : '';
+  } else if (run.phase === 'treasure') {
+    stage = `<section class="dungeon-decision room-interlude"><span class="interlude-mark" aria-hidden="true">▣</span><p class="eyebrow">A quiet glimmer</p><h3>Treasure room</h3><p class="dungeon-body-copy">Open a small chest for run coins and a chance to find a token. Tokens become coins when the run ends.</p><button class="primary-button" type="button" data-run-action="treasure">Open treasure</button></section>`;
+  } else if (run.phase === 'rest') {
+    stage = `<section class="dungeon-decision room-interlude"><span class="interlude-mark" aria-hidden="true">☾</span><p class="eyebrow">Take a breath</p><h3>Rest stop</h3><p class="dungeon-body-copy">Restore ${Math.round(run.petMaxHp * dungeonRules.restHealPercent)} health and ${dungeonRules.restEnergyRestore} energy before continuing.</p><button class="primary-button" type="button" data-run-action="rest">Rest here</button></section>`;
+  } else if (run.phase === 'shop') {
+    stage = `<section class="dungeon-decision"><p class="eyebrow">Traveling shop · ${run.coins} run coins</p><h3>Choose a useful little thing</h3><div class="shop-list">${run.shopOfferIds.map((id) => {
+      const item = dungeonData.consumables.find((candidate) => candidate.id === id);
+      if (!item) return '';
+      return `<div class="shop-item"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.description)}</small></span><button class="shop-buy" type="button" data-run-action="buy" data-consumable-id="${escapeHtml(item.id)}" ${run.consumables.length >= dungeonRules.packSlots || run.coins < item.price ? 'disabled' : ''}>${item.price} coins</button></div>`;
+    }).join('') || '<p class="pack-empty">The shelf is empty. Move on when you are ready.</p>'}</div><button class="quiet-button continue-room" type="button" data-run-action="continue-shop">Leave the shop</button></section>`;
+  } else if (run.phase === 'floor-end') {
+    stage = `<section class="dungeon-decision floor-stop"><p class="eyebrow">A natural stopping point</p><h3>Floor ${run.floor} cleared</h3><p class="dungeon-body-copy">Pip has ${run.petHp} / ${run.petMaxHp} health. You can bank everything now, or descend to floor ${run.floor + 1}.</p><div class="floor-actions"><button class="primary-button" type="button" data-run-action="descend" data-testid="dungeon-descend">Descend to floor ${run.floor + 1}</button><button class="quiet-button leave-button" type="button" data-run-action="leave" data-testid="dungeon-leave">Leave and bank rewards</button></div></section>`;
+  } else if (run.phase === 'summary') {
+    stage = `<section class="dungeon-decision run-summary" data-testid="dungeon-summary"><span class="interlude-mark ${run.result === 'fainted' ? 'is-fainted' : ''}" aria-hidden="true">${run.result === 'fainted' ? '♡' : '✦'}</span><p class="eyebrow">${run.result === 'fainted' ? 'A brave try' : 'Safe return'}</p><h3>${run.result === 'fainted' ? 'Pip is ready to rest' : 'The descent is complete'}</h3><p class="dungeon-body-copy">${run.result === 'fainted' ? `Pip reached floor ${run.floor} and came back exhausted.` : `Pip reached floor ${run.floor} and returned safely.`} ${run.lostLootCount ? `${run.lostLootCount} treasure token${run.lostLootCount === 1 ? '' : 's'} were lost.` : ''}</p><div class="dungeon-records"><span><strong>+${run.bankedCoins}</strong><small>coins banked</small></span><span><strong>${run.bankedLootCount}</strong><small>tokens kept</small></span><span><strong>${current.dungeon.petDeepestFloor}</strong><small>this pet's best</small></span></div><button class="primary-button" type="button" data-run-action="close-summary" data-testid="dungeon-summary-close">Back to Pip</button></section>`;
+  }
+
+  dungeonContent.innerHTML = `<div class="dungeon-run-grid" style="--biome-accent:${escapeHtml(biome.accent)}">
+    <section class="dungeon-map" aria-label="Floor map">
+      <div class="biome-banner"><div><p class="eyebrow">Floor ${run.floor}</p><h3>${escapeHtml(biome.name)}</h3></div><span class="biome-sigil" aria-hidden="true">${evolutions.elements[biome.element].mark}</span></div>
+      <ol class="dungeon-path" aria-label="${roomCount} room route">${nodes}</ol>
+      <div class="run-ledger"><span><small>Run coins</small><strong>${run.coins}</strong></span><span><small>Treasure</small><strong>${run.lootIds.length} token${run.lootIds.length === 1 ? '' : 's'}</strong></span><span><small>Wallet</small><strong>${current.dungeon.coins}</strong></span></div>
+      ${healthMeter('Pip health', run.petHp, run.petMaxHp, 'pet')}
+      <div class="care-conditions"><span>Hunger ${Math.round(current.needs.hunger)}%</span><span>Energy ${Math.round(current.needs.energy)}%</span></div>
+      ${modifiers.length ? `<div class="run-modifiers" aria-label="Run boons and curses">${modifiers.map((modifier) => `<span>${escapeHtml(modifier)}</span>`).join('')}</div>` : ''}
+    </section>
+    <section class="dungeon-console">${stage}${run.phase !== 'summary' ? `<section class="pack-panel" aria-label="Run pack"><div class="dungeon-section-heading"><h3>Run pack</h3><span>${run.consumables.length} / ${dungeonRules.packSlots}</span></div>${renderPack(run)}</section>` : ''}</section>
+  </div>`;
 }
 
 function renderFoodActions(): void {
@@ -427,7 +584,7 @@ function renderFoodActions(): void {
     'moss-muffin': '▣',
   };
   grid.innerHTML = foods.map((food, index) => `
-    <button class="food-button" type="button" data-action="feed" data-food-id="${food.id}" data-testid="feed-${food.id}" aria-label="Feed Pip ${food.name}. ${food.description}" title="${food.description}">
+    <button class="food-button" type="button" data-action="feed" data-food-id="${food.id}" data-testid="feed-${food.id}" aria-label="${food.name}. Feed Pip. ${food.description}" title="${food.description}">
       <span class="food-mark food-mark-${index + 1}" aria-hidden="true">${marks[food.id] ?? '✦'}</span>
       <span class="food-name">${food.name}</span>
       <span class="food-hint">${index + 1}</span>
@@ -707,10 +864,14 @@ function updateControls(current: GameState): void {
     ? 'Training games open after Pip hatches.'
     : current.sleeping
       ? 'Wake Pip to start a training game.'
-      : trainingCooling
-        ? `Training games need a breather for ${Math.ceil(current.miniGameCooldownSeconds)}s.`
-        : 'Choose a game. A good score gives up to 3 training points.';
+        : trainingCooling
+          ? `Training games need a breather for ${Math.ceil(current.miniGameCooldownSeconds)}s.`
+          : 'Choose a game. A good score gives up to 3 training points.';
   if (dexDialog.open) renderFormDex(current);
+  const dungeonOpen = must<HTMLButtonElement>('#dungeon-open');
+  dungeonOpen.disabled = current.paused || (!current.dungeon.activeRun && (current.sleeping || current.stage === 'egg' || !current.evolution.formId));
+  dungeonOpen.setAttribute('aria-pressed', String(Boolean(current.dungeon.activeRun)));
+  if (dungeonDialog.open) renderDungeon(current);
 
   overlay.hidden = !current.paused;
   if (current.paused) must<HTMLButtonElement>('#resume-button').focus({ preventScroll: true });
@@ -855,6 +1016,11 @@ root.addEventListener('click', (event) => {
       if (opened) return;
       showToast(state?.paused ? 'Continue with Pip before opening mini mode.' : 'Mini mode could not open here.');
     });
+  } else if (button.id === 'dungeon-open') {
+    if (state) renderDungeon(state);
+    dungeonDialog.showModal();
+  } else if (button.id === 'dungeon-close') {
+    dungeonDialog.close();
   } else if (button.id === 'forms-open') {
     if (state) renderFormDex(state);
     dexDialog.showModal();
@@ -875,6 +1041,8 @@ root.addEventListener('click', (event) => {
     minigameStage.hidden = true;
     minigameChoices.hidden = false;
     if (state) updateControls(state);
+  } else if (button.dataset.runAction) {
+    activateDungeonAction(button);
   } else if (button.id === 'resume-button') {
     state = state ? { ...state, paused: false } : state;
     worker.postMessage({ type: 'resume' });
@@ -901,6 +1069,9 @@ minigameDialog.addEventListener('close', () => {
 minigameDialog.addEventListener('click', (event) => {
   if (event.target === minigameDialog) minigameDialog.close();
 });
+dungeonDialog.addEventListener('click', (event) => {
+  if (event.target === dungeonDialog) dungeonDialog.close();
+});
 dexDialog.addEventListener('click', (event) => {
   if (event.target === dexDialog) dexDialog.close();
 });
@@ -925,7 +1096,7 @@ function syncAboutRoute(): void {
 }
 
 window.addEventListener('keydown', (event) => {
-  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open || settingsDialog.open || dexDialog.open || minigameDialog.open) return;
+  if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || aboutDialog.open || settingsDialog.open || dexDialog.open || minigameDialog.open || dungeonDialog.open) return;
   const target = event.target as HTMLElement;
   if (target.matches('input, textarea, select, [contenteditable="true"]')) return;
   const key = event.key.toLowerCase();
@@ -995,6 +1166,38 @@ function activateCareButton(button: HTMLButtonElement): void {
     sendAction({ type: 'clean' });
   } else if (button.dataset.action === 'toggle-sleep') {
     sendAction({ type: 'toggle-sleep' });
+  }
+}
+
+function activateDungeonAction(button: HTMLButtonElement): void {
+  const action = button.dataset.runAction;
+  if (action === 'start') {
+    sendAction({ type: 'dungeon-start-run', consumables: [...selectedDungeonPack] });
+  } else if (action === 'room') {
+    const roomType = button.dataset.roomType;
+    if (roomType && ['fight', 'elite', 'event', 'treasure', 'rest', 'shop', 'boss'].includes(roomType)) {
+      sendAction({ type: 'dungeon-choose-room', roomType: roomType as DungeonRoomType });
+    }
+  } else if (action === 'tactic' && button.dataset.tacticId) {
+    sendAction({ type: 'dungeon-choose-tactic', tacticId: button.dataset.tacticId });
+  } else if (action === 'event' && button.dataset.optionId) {
+    sendAction({ type: 'dungeon-choose-event', optionId: button.dataset.optionId });
+  } else if (action === 'treasure') {
+    sendAction({ type: 'dungeon-open-treasure' });
+  } else if (action === 'rest') {
+    sendAction({ type: 'dungeon-rest' });
+  } else if (action === 'buy' && button.dataset.consumableId) {
+    sendAction({ type: 'dungeon-buy-consumable', consumableId: button.dataset.consumableId });
+  } else if (action === 'continue-shop') {
+    sendAction({ type: 'dungeon-finish-shop' });
+  } else if (action === 'use' && button.dataset.slot !== undefined) {
+    sendAction({ type: 'dungeon-use-consumable', slot: Number(button.dataset.slot) });
+  } else if (action === 'descend') {
+    sendAction({ type: 'dungeon-descend' });
+  } else if (action === 'leave') {
+    sendAction({ type: 'dungeon-leave' });
+  } else if (action === 'close-summary') {
+    sendAction({ type: 'dungeon-close-summary' });
   }
 }
 

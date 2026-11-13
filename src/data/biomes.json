@@ -1,0 +1,7 @@
+[
+  {"id":"cinder-copse","name":"Cinder Copse","element":"fire","accent":"#ef8a57"},
+  {"id":"ripple-reach","name":"Ripple Reach","element":"water","accent":"#72c4dd"},
+  {"id":"mossy-meadow","name":"Mossy Meadow","element":"moss","accent":"#9bc978"},
+  {"id":"thunder-trail","name":"Thunder Trail","element":"storm","accent":"#c3a9ef"},
+  {"id":"moonshade-marsh","name":"Moonshade Marsh","element":"shadow","accent":"#8e7bbd"}
+]

@@ -1,0 +1,6 @@
+[
+  {"id":"guard","name":"Guard","description":"Take less incoming damage at the cost of attack power.","attackMultiplier":0.9,"damageTakenMultiplier":0.75,"critBonus":0,"speedMultiplier":1,"defenseMultiplier":1},
+  {"id":"all-in","name":"All-in","description":"Hit harder while accepting more incoming damage.","attackMultiplier":1.3,"damageTakenMultiplier":1.2,"critBonus":0,"speedMultiplier":1,"defenseMultiplier":1},
+  {"id":"focus","name":"Focus","description":"Settle your aim for a 15 percentage-point critical chance bonus.","attackMultiplier":1,"damageTakenMultiplier":1,"critBonus":0.15,"speedMultiplier":1,"defenseMultiplier":1},
+  {"id":"swift","name":"Swift","description":"Move faster, but give up a little defense.","attackMultiplier":1,"damageTakenMultiplier":1,"critBonus":0,"speedMultiplier":1.2,"defenseMultiplier":0.9}
+]

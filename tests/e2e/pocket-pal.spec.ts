@@ -138,6 +138,57 @@ test('growth HUD and Form Dex show current progress and silhouettes for undiscov
   await expect(dex).toBeHidden();
 });
 
+test('Dungeon run opens on desktop and mobile, enforces the three-slot pack, and resolves a fight', async ({ page }) => {
+  await page.addInitScript(() => {
+    const workerPrototype = Worker.prototype as unknown as { postMessage: (...args: any[]) => void };
+    const originalPostMessage = workerPrototype.postMessage;
+    workerPrototype.postMessage = function (this: Worker, message: any, ...options: any[]) {
+      const loadMessage = message as { type?: string; state?: Record<string, any> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const evolution = loadMessage.state.evolution as Record<string, unknown>;
+        loadMessage.state = {
+          ...loadMessage.state,
+          seed: 1,
+          stage: 'adult',
+          stageSeconds: 0,
+          generationSeconds: 0,
+          level: 40,
+          peakLevel: 40,
+          evolution: { ...evolution, formId: 'fire-emberguard', traitIds: [] },
+          formDex: ['fire-emberguard'],
+          training: { HP: 80, ATK: 80, DEF: 80, SPD: 80, LUK: 1 },
+        };
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  });
+  await openFreshGame(page);
+  const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.width);
+  await page.getByTestId('dungeon-open').click();
+  const dialog = page.getByRole('dialog', { name: 'The Endless Descent' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Pack up to 3 items');
+  const packItems = dialog.locator('[data-pack-item]');
+  await expect(packItems).toHaveCount(6);
+  await packItems.nth(0).check();
+  await expect(packItems.nth(0)).toBeChecked();
+  await packItems.nth(1).check();
+  await packItems.nth(2).check();
+  await expect(dialog.locator('#pack-count')).toHaveText('3 / 3');
+  await expect(packItems.nth(3)).toBeDisabled();
+  await dialog.getByTestId('dungeon-start').click();
+  await expect(dialog.locator('[data-testid^="room-"]')).toHaveCount(3);
+  await dialog.getByTestId('room-fight').click();
+  await expect(dialog.getByTestId('tactic-all-in')).toBeVisible();
+  await dialog.getByTestId('tactic-all-in').click();
+  await expect(dialog.getByTestId('dungeon-fight')).toBeVisible({ timeout: 5_000 });
+  await expect(dialog.locator('[data-testid^="room-"]')).toHaveCount(3, { timeout: 8_000 });
+  await expect(dialog.locator('.dungeon-path .is-cleared')).toHaveCount(1);
+  expect(Number(await dialog.locator('.run-ledger span').first().locator('strong').textContent())).toBeGreaterThan(0);
+  await expect(dialog.locator('.run-ledger')).toContainText('Run coins');
+});
+
 test('memory mini-game awards a score and applies capped training to the selected stat', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-1280', 'the timing-based memory sequence is exercised on desktop only');
   await page.addInitScript(() => {
@@ -223,11 +274,21 @@ test('mini mode keeps the worker active while the main page is hidden and pauses
     const browserWindow = window as Window & { __pocketTicks?: number; documentPictureInPicture?: unknown };
     browserWindow.__pocketTicks = 0;
     const postMessage = Worker.prototype.postMessage;
-    Worker.prototype.postMessage = function (message) {
+    Worker.prototype.postMessage = function (message: any, ...options: any[]) {
+      const loadMessage = message as { type?: string; state?: Record<string, any> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const evolution = loadMessage.state.evolution as Record<string, unknown>;
+        loadMessage.state = {
+          ...loadMessage.state,
+          stage: 'baby',
+          evolution: { ...evolution, formId: 'fire-emberguard' },
+          formDex: ['fire-emberguard'],
+        };
+      }
       if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'tick') {
         browserWindow.__pocketTicks = (browserWindow.__pocketTicks ?? 0) + 1;
       }
-      return postMessage.call(this, message);
+      return postMessage.call(this, message, ...options);
     };
     Object.defineProperty(window, 'documentPictureInPicture', {
       configurable: true,
@@ -243,10 +304,17 @@ test('mini mode keeps the worker active while the main page is hidden and pauses
     });
   });
   await openFreshGame(page);
+  await page.getByTestId('dungeon-open').click();
+  await page.getByTestId('dungeon-start').click();
+  await page.getByRole('button', { name: 'Close dungeon' }).click();
   const popupPromise = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Open mini mode' }).click();
   const mini = await popupPromise;
   await expect(mini.locator('#mini-scene')).toBeVisible();
+  await expect(mini.locator('#mini-dungeon')).toBeVisible();
+  await expect(mini.locator('#mini-dungeon-floor')).toHaveText('Floor 1');
+  await expect(mini.locator('#mini-dungeon-room')).toContainText('Choose a room');
+  await expect(mini.locator('#mini-dungeon-health')).toContainText('HP');
   await expect(mini.getByRole('button', { name: 'Play with Pip' })).toBeEnabled();
 
   await page.evaluate(() => {

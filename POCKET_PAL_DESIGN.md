@@ -200,6 +200,7 @@ tests/           vitest unit tests for core
 - Below 30%: -15% ATK/SPD. At 0: -40% ATK/SPD and no HP regen.
 - Rest room: heal 30% max HP and may restore some energy.
 - Pet packs up to 3 foods/consumables at run start.
+- **Phase 4 economy default:** keep the economy deliberately run-sized: a small coin wallet for the current dive and a three-slot, data-driven pack of heal/cleanse/buff consumables. Shop and treasure rooms use that coin loop; leaving banks coins and token value, while fainting applies the penalty below. Do not add equipment, a permanent item inventory, crafting, or home upgrades in this phase; equipment/inventory starts in Phase 5 and home upgrades in Phase 6.
 
 ### Run end and push-your-luck
 - After each floor: **Descend** or **Leave** (bank everything).

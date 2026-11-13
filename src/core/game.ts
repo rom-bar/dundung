@@ -13,6 +13,7 @@ import {
   rerollWithEvolutionStone,
   updateTendency,
 } from './progression';
+import { advanceDungeon, applyDungeonAction, createEmptyDungeonProgress } from './dungeon';
 import type { ActionResult, CooldownKey, GameAction, GameState, Needs, NeedKey, StatKey } from './types';
 
 const needKeys: NeedKey[] = ['hunger', 'happiness', 'energy', 'hygiene'];
@@ -30,7 +31,7 @@ function stageDurationSeconds(stage: GameState['stage']): number {
 
 export function createInitialState(seed = 1): GameState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     seed: seed >>> 0,
     stage: 'egg',
     stageSeconds: 0,
@@ -61,6 +62,7 @@ export function createInitialState(seed = 1): GameState {
     },
     formDex: [],
     hallOfPets: [],
+    dungeon: createEmptyDungeonProgress(),
     miniGameCooldownSeconds: 0,
     peakLevel: 1,
   };
@@ -104,11 +106,11 @@ export function advance(state: GameState, dtMs: number): GameState {
   };
 
   const stageSeconds = state.stageSeconds + stepSeconds;
-  if (stageSeconds < stageDurationSeconds(state.stage)) return { ...next, stageSeconds };
+  if (stageSeconds < stageDurationSeconds(state.stage)) return advanceDungeon({ ...next, stageSeconds }, stepSeconds);
 
   const leftover = Math.max(0, stageSeconds - stageDurationSeconds(state.stage));
   if (state.stage === 'elder') {
-    return completeGeneration({ ...next, stageSeconds });
+    return advanceDungeon(completeGeneration({ ...next, stageSeconds }), stepSeconds);
   }
 
   const nextStage = stageNext[state.stage];
@@ -120,7 +122,7 @@ export function advance(state: GameState, dtMs: number): GameState {
     sleeping: false,
   };
   const evolved = evolveForStage(next);
-  return { ...evolved, tendencies: { ...emptyTendencies() } };
+  return advanceDungeon({ ...evolved, tendencies: { ...emptyTendencies() } }, stepSeconds);
 }
 
 export function advanceWithSignals(state: GameState, dtMs: number): { state: GameState; signals: NeedKey[] } {
@@ -185,6 +187,8 @@ function completeMiniGame(state: GameState, action: Extract<GameAction, { type: 
 
 export function applyAction(state: GameState, action: GameAction): ActionResult {
   if (state.paused) return reject(state, 'Tap continue before caring for Pip.');
+  const dungeonResult = applyDungeonAction(state, action);
+  if (dungeonResult) return dungeonResult;
   if (action.type === 'mini-game-complete') return completeMiniGame(state, action);
   if (action.type === 'use-evolution-stone') {
     if (state.evolution.evolutionStones < 1 || !state.evolution.formId) return reject(state, 'No Evolution Stone is ready.');
@@ -211,7 +215,8 @@ export function applyAction(state: GameState, action: GameAction): ActionResult 
     };
   }
 
-  const key: CooldownKey = action.type;
+  if (dungeonResult) return dungeonResult;
+  const key = action.type as CooldownKey;
   if (state.cooldowns[key] > 0) return reject(state, 'Give Pip a moment first.');
   if (state.sleeping) return reject(state, 'Wake Pip before doing that.');
 

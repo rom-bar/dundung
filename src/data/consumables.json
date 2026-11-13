@@ -1,0 +1,8 @@
+[
+  {"id":"peppy-potion","name":"Peppy Potion","description":"Restores a friendly splash of health.","price":5,"effect":{"type":"heal","percent":25}},
+  {"id":"sparkle-sip","name":"Sparkle Sip","description":"Cleanses one lingering battle effect.","price":4,"effect":{"type":"cleanse"}},
+  {"id":"brave-biscuit","name":"Brave Biscuit","description":"Boosts attack for a short while.","price":8,"effect":{"type":"buff","stat":"ATK","multiplier":1.15,"turns":3}},
+  {"id":"snug-snack","name":"Snug Snack","description":"Makes every hit feel a little safer.","price":7,"effect":{"type":"buff","stat":"DEF","multiplier":1.15,"turns":3}},
+  {"id":"swift-sprinkle","name":"Swift Sprinkle","description":"Adds a spring to speedy paws.","price":9,"effect":{"type":"buff","stat":"SPD","multiplier":1.15,"turns":3}},
+  {"id":"lucky-lollipop","name":"Lucky Lollipop","description":"Brings a little extra luck for a few turns.","price":10,"effect":{"type":"buff","stat":"LUK","multiplier":1.15,"turns":3}}
+]

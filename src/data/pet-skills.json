@@ -1,0 +1,22 @@
+[
+  {"formId":"fire-emberguard","name":"Hearth Hug","multiplier":1.05,"effect":{"type":"shield","chance":0.35,"amount":2,"turns":2}},
+  {"formId":"fire-flarefang","name":"Flare Pounce","multiplier":1.15,"effect":{"type":"burn","chance":0.3,"amount":1,"turns":2}},
+  {"formId":"fire-sparkwhisk","name":"Sparkle Skitter","multiplier":1.08,"effect":{"type":"stun","chance":0.15,"amount":0,"turns":1}},
+  {"formId":"fire-candlebloom","name":"Candle Comfort","multiplier":1.02,"effect":{"type":"shield","chance":0.3,"amount":2,"turns":2}},
+  {"formId":"water-tidalhusk","name":"Bubble Bump","multiplier":1.05,"effect":{"type":"shield","chance":0.35,"amount":2,"turns":2}},
+  {"formId":"water-rillrunner","name":"Rill Rush","multiplier":1.12,"effect":{"type":"stun","chance":0.14,"amount":0,"turns":1}},
+  {"formId":"water-miragefin","name":"Glimmer Glide","multiplier":1.08,"effect":{"type":"stun","chance":0.18,"amount":0,"turns":1}},
+  {"formId":"water-dewkeeper","name":"Dewy Guard","multiplier":1.02,"effect":{"type":"shield","chance":0.4,"amount":2,"turns":2}},
+  {"formId":"moss-briarback","name":"Bramble Bop","multiplier":1.06,"effect":{"type":"shield","chance":0.3,"amount":2,"turns":2}},
+  {"formId":"moss-rootbreaker","name":"Rooty Rumble","multiplier":1.14,"effect":{"type":"stun","chance":0.12,"amount":0,"turns":1}},
+  {"formId":"moss-fernflip","name":"Ferny Feint","multiplier":1.09,"effect":{"type":"stun","chance":0.16,"amount":0,"turns":1}},
+  {"formId":"moss-mossmender","name":"Mending Moss","multiplier":1.03,"effect":{"type":"shield","chance":0.35,"amount":2,"turns":2}},
+  {"formId":"storm-cloudwall","name":"Cloud Cushion","multiplier":1.04,"effect":{"type":"shield","chance":0.4,"amount":2,"turns":2}},
+  {"formId":"storm-thunderkip","name":"Thunder Tumble","multiplier":1.16,"effect":{"type":"stun","chance":0.16,"amount":0,"turns":1}},
+  {"formId":"storm-staticwhirl","name":"Static Swirl","multiplier":1.1,"effect":{"type":"stun","chance":0.2,"amount":0,"turns":1}},
+  {"formId":"storm-skysinger","name":"Skyward Song","multiplier":1.03,"effect":{"type":"shield","chance":0.3,"amount":2,"turns":2}},
+  {"formId":"shadow-duskplate","name":"Dusk Dome","multiplier":1.05,"effect":{"type":"shield","chance":0.4,"amount":2,"turns":2}},
+  {"formId":"shadow-nightneedle","name":"Night Nudge","multiplier":1.13,"effect":{"type":"burn","chance":0.25,"amount":1,"turns":2}},
+  {"formId":"shadow-shadewink","name":"Wink Away","multiplier":1.08,"effect":{"type":"stun","chance":0.17,"amount":0,"turns":1}},
+  {"formId":"shadow-gloomglow","name":"Gloomy Glow","multiplier":1.02,"effect":{"type":"shield","chance":0.35,"amount":2,"turns":2}}
+]

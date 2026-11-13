@@ -1,0 +1,8 @@
+[
+  {"id":"warm-pebble","name":"Warm Pebble","description":"A cozy stone saved as run treasure.","coinValue":2},
+  {"id":"cinder-charm","name":"Cinder Charm","description":"A bright charm banked as coins at run end.","coinValue":4},
+  {"id":"sunny-spark","name":"Sunny Spark","description":"A tiny sunburst token for the end-of-run bank.","coinValue":7},
+  {"id":"cooling-shell","name":"Cooling Shell","description":"A smooth shell saved as run treasure.","coinValue":2},
+  {"id":"soft-sprig","name":"Soft Sprig","description":"A gentle meadow token saved as run treasure.","coinValue":2},
+  {"id":"moonlit-marble","name":"Moonlit Marble","description":"A dusky marble converted to coins at run end.","coinValue":7}
+]

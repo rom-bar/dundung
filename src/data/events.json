@@ -1,0 +1,66 @@
+[
+  {
+    "id": "lantern-lost",
+    "title": "The Lost Lantern",
+    "description": "A tiny lantern flickers beside the path.",
+    "options": [
+      { "id": "relight", "label": "Relight it", "successChance": 0.7, "success": [{ "type": "coins", "min": 2, "max": 4 }], "failure": [{ "type": "damage", "percent": 5 }] },
+      { "id": "carry", "label": "Carry it along", "successChance": 0.8, "success": [{ "type": "loot", "lootId": "warm-pebble" }], "failure": [{ "type": "damage", "percent": 5 }] }
+    ]
+  },
+  {
+    "id": "friendly-fountain",
+    "title": "Friendly Fountain",
+    "description": "A smiling fountain offers a cool sip.",
+    "options": [
+      { "id": "sip", "label": "Take a sip", "successChance": 0.85, "success": [{ "type": "heal", "percent": 18 }], "failure": [{ "type": "damage", "percent": 5 }] },
+      { "id": "drink-deeply", "label": "Drink deeply", "successChance": 0.7, "success": [{ "type": "heal", "percent": 28 }], "failure": [{ "type": "damage", "percent": 8 }] }
+    ]
+  },
+  {
+    "id": "curious-cart",
+    "title": "The Curious Cart",
+    "description": "A traveling tinkerer shows a curious little tonic.",
+    "options": [
+      { "id": "trade", "label": "Ask about the tonic", "successChance": 0.9, "success": [{ "type": "consumable", "consumableId": "peppy-potion" }], "failure": [{ "type": "damage", "percent": 5 }] },
+      { "id": "browse", "label": "Browse the trinkets", "successChance": 0.65, "success": [{ "type": "loot", "lootId": "cinder-charm" }], "failure": [{ "type": "damage", "percent": 8 }] }
+    ]
+  },
+  {
+    "id": "sleepy-stones",
+    "title": "Sleepy Stones",
+    "description": "Warm stones hum a gentle bedtime tune.",
+    "options": [
+      { "id": "rest", "label": "Rest nearby", "successChance": 0.8, "success": [{ "type": "heal", "percent": 22 }], "failure": [{ "type": "damage", "percent": 5 }] },
+      { "id": "practice", "label": "Practice a brave pose", "successChance": 0.75, "success": [{ "type": "buff", "stat": "DEF", "multiplier": 1.1, "turns": 2 }], "failure": [{ "type": "damage", "percent": 5 }] }
+    ]
+  },
+  {
+    "id": "rainbow-bridge",
+    "title": "Rainbow Bridge",
+    "description": "A bright bridge appears over a small ravine.",
+    "options": [
+      { "id": "dash", "label": "Dash across", "successChance": 0.7, "success": [{ "type": "buff", "stat": "SPD", "multiplier": 1.1, "turns": 2 }], "failure": [{ "type": "damage", "percent": 10 }] },
+      { "id": "toss", "label": "Follow the shining stones", "successChance": 0.85, "success": [{ "type": "coins", "min": 2, "max": 5 }], "failure": [{ "type": "damage", "percent": 5 }] },
+      { "id": "careful", "label": "Cross carefully", "successChance": 0.95, "success": [{ "type": "loot", "lootId": "warm-pebble" }], "failure": [{ "type": "damage", "percent": 5 }] }
+    ]
+  },
+  {
+    "id": "mossy-mailbox",
+    "title": "The Mossy Mailbox",
+    "description": "A mailbox has a cheerful note addressed to any adventurer.",
+    "options": [
+      { "id": "open", "label": "Open the note", "successChance": 0.9, "success": [{ "type": "buff", "stat": "LUK", "multiplier": 1.1, "turns": 3 }], "failure": [{ "type": "damage", "percent": 5 }] },
+      { "id": "deliver", "label": "Deliver it onward", "successChance": 0.75, "success": [{ "type": "loot", "lootId": "soft-sprig" }], "failure": [{ "type": "coins", "min": 1, "max": 2 }] }
+    ]
+  },
+  {
+    "id": "twilight-promise",
+    "title": "The Twilight Promise",
+    "description": "A little star offers a gift with a gentle catch.",
+    "options": [
+      { "id": "bright-promise", "label": "Carry a bright promise", "successChance": 0.75, "success": [{ "type": "run-stat", "stat": "LUK", "multiplier": 1.15, "name": "Lucky glow" }], "failure": [{ "type": "damage", "percent": 5 }] },
+      { "id": "thorny-bargain", "label": "Take the thorny bargain", "successChance": 0.6, "success": [{ "type": "run-stat", "stat": "HP", "multiplier": 0.9, "name": "Tender pact" }, { "type": "coin-multiplier", "multiplier": 1.25, "name": "Prosperous curse" }], "failure": [{ "type": "damage", "percent": 10 }] }
+    ]
+  }
+]

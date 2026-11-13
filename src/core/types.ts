@@ -44,6 +44,7 @@ export interface PetRecord {
   formId: string | null;
   peakLevel: number;
   activeSeconds: number;
+  deepestFloor: number;
   inheritedTraitId: string | null;
 }
 
@@ -59,12 +60,85 @@ export interface EvolutionProgress {
   baseStatBonus: number;
 }
 
+export type DungeonRoomType = 'fight' | 'elite' | 'event' | 'treasure' | 'rest' | 'shop' | 'boss';
+export type DungeonPhase = 'choice' | 'tactic' | 'combat' | 'event' | 'treasure' | 'rest' | 'shop' | 'floor-end' | 'summary';
+export type CombatStatusType = 'burn' | 'stun' | 'shield' | 'buff';
+export type EnemyKind = 'fight' | 'elite' | 'boss';
+
+export interface CombatStatus {
+  type: CombatStatusType;
+  amount: number;
+  turns: number;
+  stat?: StatKey;
+  multiplier?: number;
+}
+
+export interface DungeonEnemyState {
+  id: string;
+  name: string;
+  kind: EnemyKind;
+  element: Element;
+  skillId: string;
+  stats: Stats;
+  hp: number;
+  maxHp: number;
+  gauge: number;
+  statuses: CombatStatus[];
+  phaseTwoTriggered: boolean;
+  phaseTwoSkillId: string | null;
+  phaseTwoAttackMultiplier: number;
+  coinDrop: { min: number; max: number };
+  lootDrops: Array<{ lootId: string; chance: number }>;
+}
+
+export interface DungeonRunState {
+  generation: number;
+  floor: number;
+  roomIndex: number;
+  biomeId: string;
+  petFormId: string;
+  petElement: Element;
+  phase: DungeonPhase;
+  rngSeed: number;
+  petStats: Stats;
+  runStatMultipliers: Stats;
+  coinMultiplier: number;
+  petHp: number;
+  petMaxHp: number;
+  petGauge: number;
+  petStatuses: CombatStatus[];
+  enemy: DungeonEnemyState | null;
+  roomChoices: DungeonRoomType[];
+  currentRoom: DungeonRoomType | null;
+  eventId: string | null;
+  shopOfferIds: string[];
+  tacticId: string | null;
+  consumables: string[];
+  coins: number;
+  lootIds: string[];
+  combatLog: string[];
+  combatElapsedSeconds: number;
+  turns: number;
+  result: 'left' | 'fainted' | null;
+  bankedCoins: number;
+  bankedLootCount: number;
+  lostLootCount: number;
+}
+
+export interface DungeonProgress {
+  coins: number;
+  deepestFloor: number;
+  petDeepestFloor: number;
+  runsCompleted: number;
+  activeRun: DungeonRunState | null;
+}
+
 export type Animation = 'idle' | 'eat' | 'play' | 'clean' | 'sleep' | 'wake' | 'evolve';
 export type CooldownKey = 'feed' | 'play' | 'clean' | 'sleep';
 export type ActionLabel = CooldownKey | 'train';
 
 export interface GameState {
-  schemaVersion: 2;
+  schemaVersion: 3;
   seed: number;
   stage: LifeStage;
   stageSeconds: number;
@@ -85,6 +159,7 @@ export interface GameState {
   evolution: EvolutionProgress;
   formDex: string[];
   hallOfPets: PetRecord[];
+  dungeon: DungeonProgress;
   miniGameCooldownSeconds: number;
   peakLevel: number;
 }
@@ -106,7 +181,19 @@ export type GameAction =
   | { type: 'clean' }
   | { type: 'toggle-sleep' }
   | { type: 'mini-game-complete'; stat: StatKey; score: number }
-  | { type: 'use-evolution-stone' };
+  | { type: 'use-evolution-stone' }
+  | { type: 'dungeon-start-run'; consumables: string[] }
+  | { type: 'dungeon-choose-room'; roomType: DungeonRoomType }
+  | { type: 'dungeon-choose-tactic'; tacticId: string }
+  | { type: 'dungeon-choose-event'; optionId: string }
+  | { type: 'dungeon-open-treasure' }
+  | { type: 'dungeon-rest' }
+  | { type: 'dungeon-buy-consumable'; consumableId: string }
+  | { type: 'dungeon-finish-shop' }
+  | { type: 'dungeon-use-consumable'; slot: number }
+  | { type: 'dungeon-descend' }
+  | { type: 'dungeon-leave' }
+  | { type: 'dungeon-close-summary' };
 
 export interface ActionResult {
   state: GameState;

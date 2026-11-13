@@ -1,0 +1,10 @@
+[
+  {"id":"pebble-pat","name":"Pebble Pat","multiplier":0.9,"effect":null},
+  {"id":"ember-nip","name":"Ember Nip","multiplier":1.0,"effect":{"type":"burn","chance":0.25,"amount":1,"turns":2}},
+  {"id":"tidal-tap","name":"Tidal Tap","multiplier":0.95,"effect":{"type":"stun","chance":0.15,"amount":0,"turns":1}},
+  {"id":"thorn-tickle","name":"Thorn Tickle","multiplier":0.9,"effect":{"type":"burn","chance":0.2,"amount":1,"turns":2}},
+  {"id":"static-pop","name":"Static Pop","multiplier":0.95,"effect":{"type":"stun","chance":0.18,"amount":0,"turns":1}},
+  {"id":"shade-swipe","name":"Shade Swipe","multiplier":1.0,"effect":null},
+  {"id":"guardian-glimmer","name":"Guardian Glimmer","multiplier":0.85,"effect":{"type":"shield","chance":0.3,"amount":2,"turns":2}},
+  {"id":"comet-crash","name":"Comet Crash","multiplier":1.1,"effect":{"type":"stun","chance":0.12,"amount":0,"turns":1}}
+]

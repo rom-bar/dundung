@@ -1,0 +1,14 @@
+{
+  "floorsPerBiome": 10,
+  "bossEveryFloors": 10,
+  "roomsPerFloor": 3,
+  "choicesPerRoom": 3,
+  "weights": [
+    {"type":"fight","weight":45},
+    {"type":"event","weight":20},
+    {"type":"treasure","weight":10},
+    {"type":"rest","weight":10},
+    {"type":"shop","weight":10}
+  ],
+  "elite": {"weight":5,"minFloor":5}
+}

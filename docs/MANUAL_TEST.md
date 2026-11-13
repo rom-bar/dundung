@@ -2,6 +2,24 @@
 
 Emulator tests can verify layout and event handling, but they cannot judge the comfort of Pip's care controls in a real hand. Open the live site on a phone and check these items:
 
+## Phase 4 dungeon checks
+
+- [ ] Hatch Pip and open Dungeon. Confirm an egg cannot start a run; after hatching, select up to three different run-only consumables and start.
+- [ ] Confirm each regular floor offers three distinct room paths and three rooms before the floor stop. Floor 5 can offer an elite; every tenth floor is one boss room, and the biome changes every ten floors.
+- [ ] Choose a fight and each tactic in turn. Confirm combat advances automatically, gauges track speed, health bars update, status effects appear in the log, and the boss switches skill at half health.
+- [ ] Lower hunger or energy below 30%, then to zero, and confirm attack/speed penalties. Check each completed room costs one hunger and each fight costs two energy.
+- [ ] Try healing, cleansing burn/stun, and a short buff from the pack both during and between fights. A full-health heal or unnecessary cleanse should not consume the item.
+- [ ] Use an event choice that grants a boon or curse; confirm it stays in run state and does not modify permanent pet stats or another run.
+- [ ] Visit a shop with enough run coins, buy an item, and leave the shop without buying; confirm the three-slot pack limit and run-only spending.
+- [ ] Open treasure and confirm coin and token rewards stay in the run until a safe exit.
+- [ ] At a floor stop, descend and then try leaving on a later floor. Confirm a safe exit banks all run coins and token value and shows the run summary.
+- [ ] In a QA save, faint at zero HP. Confirm only half the coins and a deterministic random half of tokens are kept, the pack is lost, energy returns at zero, and the summary names the penalty.
+- [ ] Confirm this pet's deepest floor appears in the current run and is saved to Hall of Pets after the generation ends; the all-time record should never go down.
+- [ ] Save or reload mid-run. Confirm the app reopens paused and restores the floor, room, HP, wallet, pack, enemy and combat log without advancing while away.
+- [ ] In Document Picture-in-Picture, confirm the current floor, room, HP bar and quick care actions remain visible while the main tab is hidden; if using video PiP, confirm its compact floor/room/HP overlay is readable. Closing PiP should return to normal pause rules.
+
+## Care and mobile checks
+
 - [ ] At 320px and 360px wide, scroll to Little ways to help; the care dock should stick to the bottom and its food and care buttons should be easy to tap without clipping or touching a neighbor.
 - [ ] Try each snack, Play, Tuck in/Wake up, and Clean; each press should act once, with no repeat while held.
 - [ ] Try holding two different care buttons briefly; their pressed feedback should remain independent and clear on release.

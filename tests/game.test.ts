@@ -136,7 +136,7 @@ describe('save migration and seeded randomness', () => {
 
   it('migrates a schema-less save and repairs invalid need values', () => {
     const restored = migrateSave({ stage: 'baby', needs: { hunger: 200, happiness: 'lots' } });
-    expect(restored.schemaVersion).toBe(2);
+    expect(restored.schemaVersion).toBe(3);
     expect(restored.stage).toBe('baby');
     expect(restored.needs.hunger).toBe(100);
     expect(restored.needs.happiness).toBe(86);
@@ -155,7 +155,7 @@ describe('save migration and seeded randomness', () => {
       tendencies: { play: 0.75 },
       hallOfPets: [{ generation: 2, name: '<img src=x onerror=alert(1)>', formId: 'fire-emberguard', peakLevel: 999 }],
     });
-    expect(restored.schemaVersion).toBe(2);
+    expect(restored.schemaVersion).toBe(3);
     expect(restored.generationSeconds).toBe(123);
     expect(restored.stageSeconds).toBe(rules.lifeStages.stageMinutes.baby * 60);
     expect(restored.cooldowns.feed).toBe(rules.actionCooldownSeconds.feed);
@@ -164,6 +164,8 @@ describe('save migration and seeded randomness', () => {
     expect(restored.tendencies.training).toBe(0);
     expect(restored.hallOfPets[0]?.name).toBe('Emberguard');
     expect(restored.hallOfPets[0]?.peakLevel).toBe(40);
+    expect(restored.hallOfPets[0]?.deepestFloor).toBe(0);
+    expect(restored.dungeon).toMatchObject({ coins: 0, deepestFloor: 0, petDeepestFloor: 0, runsCompleted: 0, activeRun: null });
   });
 
   it('refuses to open a save from a future schema version', () => {

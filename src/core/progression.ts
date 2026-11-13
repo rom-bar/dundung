@@ -317,6 +317,7 @@ export function completeGeneration(state: GameState): GameState {
     formId: state.evolution.formId,
     peakLevel: state.peakLevel,
     activeSeconds: state.generationSeconds,
+    deepestFloor: state.dungeon.petDeepestFloor,
     inheritedTraitId: state.evolution.inheritedTraitId,
   };
   const nextEvolution = emptyEvolution(selectedTrait, state.evolution.baseStatBonus + rules.progression.legacyBaseStatBonus);
@@ -340,6 +341,7 @@ export function completeGeneration(state: GameState): GameState {
     evolution: nextEvolution,
     formDex: state.formDex,
     hallOfPets: [record, ...state.hallOfPets].slice(0, rules.progression.hallOfPetsLimit),
+    dungeon: { ...state.dungeon, petDeepestFloor: 0 },
     miniGameCooldownSeconds: 0,
     peakLevel: 1,
     animation: 'evolve',

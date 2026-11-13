@@ -2,6 +2,7 @@ import rules from '../data/rules.json';
 import { getAllForms, getFormDefinition, getLevelCap, getTraitDefinition } from './progression';
 import type { Element, GameState, LifeStage, Needs, PetRecord, Stats, Tendencies } from './types';
 import { createInitialState } from './game';
+import { migrateDungeonProgress } from './dungeon';
 
 const maximumLevel = Math.max(...Object.values(rules.lifeStages.levelCaps));
 
@@ -36,6 +37,7 @@ function validPetRecord(value: unknown): PetRecord | null {
     formId,
     peakLevel: Math.floor(boundedNumber(value.peakLevel, 1, 1, maximumLevel)),
     activeSeconds: nonNegative(value.activeSeconds),
+    deepestFloor: Math.floor(boundedNumber(value.deepestFloor, 0, 0, 1_000_000)),
     inheritedTraitId,
   };
 }
@@ -43,7 +45,7 @@ function validPetRecord(value: unknown): PetRecord | null {
 export function migrateSave(input: unknown): GameState {
   if (!isRecord(input)) throw new Error('Save data is not an object.');
   const version = typeof input.schemaVersion === 'number' ? input.schemaVersion : 0;
-  if (version > 2) throw new Error(`Save version ${version} is newer than this game.`);
+  if (version > 3) throw new Error(`Save version ${version} is newer than this game.`);
 
   const base = createInitialState(typeof input.seed === 'number' ? input.seed : 1);
   const oldNeeds = isRecord(input.needs) ? input.needs : {};
@@ -127,7 +129,7 @@ export function migrateSave(input: unknown): GameState {
 
   return {
     ...base,
-    schemaVersion: 2,
+    schemaVersion: 3,
     seed: typeof input.seed === 'number' ? input.seed >>> 0 : base.seed,
     stage,
     stageSeconds: Math.min(nonNegative(input.stageSeconds), rules.lifeStages.stageMinutes[stage] * 60),
@@ -148,6 +150,7 @@ export function migrateSave(input: unknown): GameState {
     evolution,
     formDex,
     hallOfPets,
+    dungeon: migrateDungeonProgress(input.dungeon),
     miniGameCooldownSeconds: boundedNumber(input.miniGameCooldownSeconds, 0, 0, rules.progression.miniGameCooldownSeconds),
     peakLevel: Math.floor(boundedNumber(input.peakLevel, level, level, maximumLevel)),
   };

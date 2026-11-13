@@ -1,4 +1,5 @@
 import foods from '../data/foods.json';
+import rooms from '../data/rooms.json';
 import type { GameAction, GameState, NeedKey } from '../core/types';
 import { drawPetScene } from '../render/sprite';
 
@@ -127,6 +128,7 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
       .mini-needs{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin:10px 0;color:#ded6e8;font-size:10px}
       .mini-need{min-width:0}.mini-label{display:flex;justify-content:space-between;margin-bottom:3px}.mini-meter{height:5px;background:#151221;border:1px solid rgba(247,240,220,.12)}
       .mini-fill{display:block;height:100%;background:#abdfb4}.mini-fill.low{background:#f1c96b}.mini-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+      .mini-dungeon{margin:0 0 9px;padding:8px;border:1px solid rgba(241,201,107,.3);background:#242035}.mini-dungeon[hidden]{display:none}.mini-dungeon-head{display:flex;justify-content:space-between;gap:8px;color:#f1c96b;font-size:10px;font-weight:700}.mini-dungeon-room{margin:4px 0 6px;color:#c9bfd5;font-size:9px}.mini-dungeon-meter{height:7px;overflow:hidden;border:1px solid rgba(247,240,220,.15);background:#151221}.mini-dungeon-meter span{display:block;height:100%;background:#abdfb4;transition:width 100ms linear}
       .mini-actions button{min-width:0;min-height:42px;border:1px solid rgba(219,207,235,.17);border-radius:4px;background:#29243b;color:#f7f0dc;font:600 10px ui-rounded,'Trebuchet MS',system-ui,sans-serif;cursor:pointer;touch-action:manipulation}
       .mini-actions button:disabled{opacity:.48}.mini-actions button:focus-visible{outline:2px solid #f1c96b;outline-offset:2px}
       #mini-message{min-height:28px;margin:8px 0 0;color:#aaa0b8;font-size:10px;line-height:1.4}
@@ -142,6 +144,11 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
       <canvas class="mini-scene" id="mini-scene" width="240" height="160" role="img" aria-label="Pip in the pocket habitat"></canvas>
       <section class="mini-needs" aria-label="Pip's needs">
         ${needKeys.map((key) => `<div class="mini-need"><div class="mini-label"><span>${needLabels[key]}</span><span data-mini-value="${key}">100%</span></div><div class="mini-meter" role="progressbar" aria-label="${needLabels[key]}" aria-valuemin="0" aria-valuemax="100" data-mini-meter="${key}"><span class="mini-fill" data-mini-fill="${key}"></span></div></div>`).join('')}
+      </section>
+      <section class="mini-dungeon" id="mini-dungeon" aria-label="Dungeon progress" hidden>
+        <div class="mini-dungeon-head"><span id="mini-dungeon-floor">Floor 1</span><span id="mini-dungeon-health">HP</span></div>
+        <p class="mini-dungeon-room" id="mini-dungeon-room">Choosing a path</p>
+        <div class="mini-dungeon-meter" role="progressbar" aria-label="Dungeon health" aria-valuemin="0" data-mini-dungeon-meter><span id="mini-dungeon-fill"></span></div>
       </section>
       <div class="mini-actions" aria-label="Quick care actions">
         <button type="button" data-mini-action="feed" aria-label="Feed Pip">Snack</button>
@@ -181,7 +188,7 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
     const canvas = doc.querySelector<HTMLCanvasElement>('#mini-scene');
     if (canvas) drawPetScene(canvas, state, time / 1000, window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     const stage = doc.querySelector<HTMLElement>('#mini-stage');
-    if (stage) stage.textContent = state.stage === 'egg' ? 'Egg' : 'Baby';
+    if (stage) stage.textContent = state.stage[0]!.toUpperCase() + state.stage.slice(1);
     needKeys.forEach((key) => {
       const percent = Math.round(state.needs[key]);
       const fill = doc.querySelector<HTMLElement>(`[data-mini-fill="${key}"]`);
@@ -201,6 +208,25 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
       button.disabled = state.paused || sleepingLock || Boolean(cooldownKey && state.cooldowns[cooldownKey as keyof GameState['cooldowns']] > 0);
       if (action === 'sleep') button.textContent = state.sleeping ? 'Wake' : 'Rest';
     });
+    const run = state.dungeon.activeRun;
+    const dungeonTile = doc.querySelector<HTMLElement>('#mini-dungeon');
+    const dungeonFloor = doc.querySelector<HTMLElement>('#mini-dungeon-floor');
+    const dungeonRoom = doc.querySelector<HTMLElement>('#mini-dungeon-room');
+    const dungeonHealth = doc.querySelector<HTMLElement>('#mini-dungeon-health');
+    const dungeonMeter = doc.querySelector<HTMLElement>('[data-mini-dungeon-meter]');
+    const dungeonFill = doc.querySelector<HTMLElement>('#mini-dungeon-fill');
+    if (dungeonTile) dungeonTile.hidden = !run;
+    if (run) {
+      const roomCount = run.floor % rooms.bossEveryFloors === 0 ? 1 : rooms.roomsPerFloor;
+      const roomName = run.currentRoom ? run.currentRoom[0]!.toUpperCase() + run.currentRoom.slice(1) : run.phase === 'choice' ? 'Choose a room' : run.phase;
+      if (dungeonFloor) dungeonFloor.textContent = run.phase === 'summary' ? `Run ended · +${run.bankedCoins}` : `Floor ${run.floor}`;
+      if (dungeonRoom) dungeonRoom.textContent = run.phase === 'summary' ? `${run.result === 'fainted' ? 'Pip fainted' : 'Safe return'} · ${run.bankedLootCount} tokens kept` : `Room ${Math.min(run.roomIndex + 1, roomCount)} / ${roomCount} · ${roomName}`;
+      if (dungeonHealth) dungeonHealth.textContent = run.phase === 'summary' ? 'Done' : `${Math.round(run.petHp)} / ${Math.round(run.petMaxHp)} HP`;
+      const percent = run.phase === 'summary' ? 0 : Math.max(0, Math.min(100, Math.round((run.petHp / Math.max(1, run.petMaxHp)) * 100)));
+      if (dungeonFill) dungeonFill.style.width = `${percent}%`;
+      dungeonMeter?.setAttribute('aria-valuemax', String(Math.round(run.petMaxHp)));
+      dungeonMeter?.setAttribute('aria-valuenow', String(Math.round(run.petHp)));
+    }
     const line = doc.querySelector<HTMLElement>('#mini-message');
     if (line) line.textContent = message;
   }
@@ -247,13 +273,40 @@ export function createMiniMode(options: MiniModeOptions): MiniModeController {
     }
   }
 
-  function videoFrame(): void {
-    const time = performance.now();
-    const dt = previousFrame ? Math.min(time - previousFrame, 100) : 0;
-    previousFrame = time;
-    if (dt > 0) options.onTick(dt);
-    if (currentState) drawPetScene(options.canvas, currentState, time / 1000, window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+function videoFrame(): void {
+  const time = performance.now();
+  const dt = previousFrame ? Math.min(time - previousFrame, 100) : 0;
+  previousFrame = time;
+  if (dt > 0) options.onTick(dt);
+  if (currentState) {
+    drawPetScene(options.canvas, currentState, time / 1000, window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    drawDungeonVideoOverlay(options.canvas, currentState);
   }
+}
+
+function drawDungeonVideoOverlay(canvas: HTMLCanvasElement, state: GameState): void {
+  const run = state.dungeon.activeRun;
+  const context = canvas.getContext('2d');
+  if (!run || !context) return;
+  const width = canvas.width;
+  const height = canvas.height;
+  const boxX = 7;
+  const boxY = height - 31;
+  const boxWidth = width - 14;
+  context.save();
+  context.fillStyle = 'rgba(21, 18, 33, 0.9)';
+  context.fillRect(boxX, boxY, boxWidth, 25);
+  context.fillStyle = '#f7f0dc';
+  context.font = '8px system-ui, sans-serif';
+  context.textBaseline = 'top';
+  const room = run.currentRoom ?? (run.phase === 'choice' ? 'path' : run.phase);
+  context.fillText(`F${run.floor} · ${room} · ${Math.round(run.petHp)}/${Math.round(run.petMaxHp)} HP`, boxX + 5, boxY + 3, boxWidth - 10);
+  context.fillStyle = '#494158';
+  context.fillRect(boxX + 5, boxY + 15, boxWidth - 10, 5);
+  context.fillStyle = '#abdfb4';
+  context.fillRect(boxX + 5, boxY + 15, (boxWidth - 10) * Math.max(0, Math.min(1, run.petHp / Math.max(1, run.petMaxHp))), 5);
+  context.restore();
+}
 
   function clearVideoLoop(): void {
     if (videoTimer) window.clearInterval(videoTimer);
