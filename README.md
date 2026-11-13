@@ -68,7 +68,13 @@ node scripts/simulate-balance.mjs 2000
 npm run preview
 ```
 
-The app uses vanilla TypeScript with a lazily imported Phaser 3.90 stage. Menus, status, actions, and the detail sheet remain DOM UI. In this first engine-migration release, the existing renderer paints a compatibility texture and Phaser presents it on the original stage canvas; the next milestone replaces that texture with sourced atlas sprites. Until Phaser is ready, or if loading fails, the direct renderer keeps the stage visible. The simulation and its seeded RNG stay in the Web Worker; presentation consumes the existing ordered event queue without changing outcomes. IndexedDB stores the versioned save, with localStorage as a fallback. Phaser's separate chunk is included by the service worker's generated-file precache. The bundled Press Start 2P font is under the SIL Open Font License; its license is in `LICENSES/`.
+## Phaser stage and presentation
+
+The main canvas is now a native Phaser 3.90 Canvas scene, loaded on demand; menus, status, quick actions, and the details sheet stay in the DOM. A small direct renderer remains available for the first paint and as a safe fallback if the lazy Phaser chunk fails. The 16px stage atlas is reproducibly built by `python3 scripts/build-stage-atlas.py`; sources, CC0 terms, and permitted transforms are listed in [`CREDITS.md`](CREDITS.md) and `assets-src/`. The app's Press Start 2P font is under the SIL Open Font License; its license is in `LICENSES/`.
+
+The seeded game simulation and RNG remain in the Web Worker. Phaser consumes ordered visual events and cannot decide damage, rewards, hatching, or other gameplay outcomes. The **1×**, **2×**, and **Skip** control changes presentation playback only; it never accelerates game time. `prefers-reduced-motion` removes nonessential movement and camera effects while keeping status and event-log text available. The portrait shell uses a fixed `100dvh` layout; the canvas resizes without distorting sprites. IndexedDB stores the versioned save, with localStorage as a fallback, and the generated service worker precaches the lazy Phaser chunk and stage atlas for offline reloads.
+
+Action-synced stage effects use Web Audio and follow the existing Sound setting. No visual effect or stage sound consumes gameplay RNG. Stage review captures are in [`docs/art-review/`](docs/art-review/), including attack samples and the fresh Egg state.
 
 ## Deploy to GitHub Pages
 
@@ -93,6 +99,8 @@ Phase 4's wallet and pack are intentionally small and run-focused. Phase 5 adds 
 
 Mini mode prefers the Document Picture-in-Picture API. If that API is missing or cannot open, Pocket Pal tries video Picture-in-Picture with feed/play media-session actions. During a dungeon run, Document PiP shows the live floor, room, HP, and quick actions; video PiP adds a compact floor/room/HP overlay and remains view-mostly. If neither path is available, the Mini button stays hidden and the normal pause-on-hide behavior remains in effect. API support is feature-detected; this matrix describes the available path, not a promise that every browser build or device exposes it.
 
+The Phaser stage stays in the main document and, when supported, is sent to the Document PiP window through `canvas.captureStream(30)` into a muted `<video>`; care controls and status remain HTML in the PiP document. If canvas streaming is unavailable but Document PiP works, the window copies the already-rendered canvas at its animation-frame rate. If Document PiP cannot open, video PiP streams the stage canvas directly. The PiP window drives bounded stage frames and active-time ticks while open; closing it stops the stream and returns to the normal page lifecycle.
+
 | Browser family | Document Picture-in-Picture | Video Picture-in-Picture fallback | Pocket Pal status |
 | --- | --- | --- | --- |
 | Chromium desktop | Preferred path, when exposed | Fallback, when exposed | Document PiP with interactive care; video fallback is view-mostly |
@@ -106,4 +114,4 @@ Mini mode prefers the Document Picture-in-Picture API. If that API is missing or
 
 ## Original content
 
-Pocket Pal's name, character, pixel scenes, sounds, code, and UI copy were made for this project. It does not use third-party characters, copied game art, sound recordings, or push notifications.
+Pocket Pal's name, code, UI, and pet identity are original. The Phaser scene uses redistributable CC0 pixel-art source assets, with exact sources and transforms documented in [`CREDITS.md`](CREDITS.md); none of the supplied reference screenshots or third-party game characters are reused. Stage sounds are synthesized in the browser rather than copied from recordings. The app does not use push notifications.

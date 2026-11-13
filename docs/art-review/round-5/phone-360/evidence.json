@@ -1,0 +1,38 @@
+{
+  "round": "5",
+  "project": "phone-360",
+  "states": [
+    "corridor",
+    "intro",
+    "attack",
+    "crit",
+    "chest",
+    "home",
+    "eating"
+  ],
+  "attackFrames": 8,
+  "attackProgress": [
+    0,
+    0.16,
+    0.3,
+    0.45,
+    0.48,
+    0.52,
+    0.72,
+    1
+  ],
+  "layout": {
+    "viewport": {
+      "width": 360,
+      "height": 740
+    },
+    "stage": {
+      "width": 350,
+      "height": 322.796875
+    },
+    "scrollWidth": 360,
+    "scrollHeight": 740,
+    "seed": 3165911844
+  },
+  "errors": []
+}

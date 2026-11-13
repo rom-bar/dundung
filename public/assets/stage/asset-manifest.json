@@ -1,0 +1,632 @@
+{
+  "generatedBy": "scripts/build-stage-atlas.py",
+  "sources": [
+    {
+      "id": "biome1.ground.grass",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0000.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.ground.grass-detail",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0001.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.ground.flower",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0002.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.tree.young",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0004.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.tree.round",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0005.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.tree.tall",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0006.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.tree.young-flip",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0004.png",
+      "transform": "flip-x",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.stone.gray",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0048.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.stone.blue",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0049.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.stone.gray-2",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0050.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "biome1.canopy.soft",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0028.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "chest.closed",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/Kenney_tiny_dungeon.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 89
+    },
+    {
+      "id": "chest.closed-highlight",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/Kenney_tiny_dungeon.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 90
+    },
+    {
+      "id": "food.biscuit",
+      "sourceArchive": "henry-food",
+      "sourceMember": "henry-food.png#crop=0,0,16,16",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "pet1.egg",
+      "sourceArchive": "goopybus-egg",
+      "sourceMember": "goopybus-egg.png",
+      "transform": "downsample-nearest-2x",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "icon.coin",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0094.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "icon.gem",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0104.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "icon.bag",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0109.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "icon.heart",
+      "sourceArchive": "town",
+      "sourceMember": "Tiles/tile_0118.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "pet1.rabbit.idle",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.idle-2",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "flip-x",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.walk",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.walk-2",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "flip-x",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.happy",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.sleep",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.sleep-2",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "flip-x",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.hurt",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "flip-x",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.faint",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "enemy1.slime.idle",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.idle-2",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "flip-x",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.attack",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.hurt",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "flip-x",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.death",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.variant",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "slime-tint",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.variant-2",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "slime-tint-flip-x",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "particle.sparkle-1",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 57
+    },
+    {
+      "id": "particle.sparkle-2",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 58
+    },
+    {
+      "id": "particle.sparkle-3",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 59
+    },
+    {
+      "id": "particle.sparkle-4",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 60
+    },
+    {
+      "id": "dungeon.floor",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/Kenney_tiny_dungeon.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 48
+    },
+    {
+      "id": "dungeon.path",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/Kenney_tiny_dungeon.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 50
+    },
+    {
+      "id": "dungeon.wall",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/Kenney_tiny_dungeon.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 14
+    },
+    {
+      "id": "dungeon.torch",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/Kenney_tiny_dungeon.png",
+      "transform": "none",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 125
+    },
+    {
+      "id": "pet1.rabbit.hit-flash",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "white-fill",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.fire",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-fire",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.water",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-water",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.moss",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-moss",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.storm",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-storm",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "pet1.rabbit.shadow",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-shadow",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 152
+    },
+    {
+      "id": "enemy1.slime.hit-flash",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "white-fill",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.fire",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-fire",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.water",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-water",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.moss",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-moss",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.storm",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-storm",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "enemy1.slime.shadow",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "palette-shadow",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 99
+    },
+    {
+      "id": "particle.gold",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "gold-fill",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 57
+    },
+    {
+      "id": "particle.heal",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "heal-fill",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 57
+    },
+    {
+      "id": "particle.dust",
+      "sourceArchive": "creatures",
+      "sourceMember": "tiny-creatures/Tilemap/tilemap.png",
+      "transform": "dust-fill",
+      "tileSize": [
+        16,
+        16
+      ],
+      "sourceIndex": 57
+    }
+  ],
+  "archiveSha256": {
+    "assets-src/tiny-creatures.zip": "b397566a1a0f9189dbeb1119a797e35d5985b587596b02f6631d1eacec40252d",
+    "assets-src/kenney-tiny-town.zip": "9768692dccff1d706408a5aedd6ca4f6cd1409506cbc84cb2f862919764be977",
+    "assets-src/henry-food.png": "eb3bd9301354180ec85ebe6558818cffaad53c8bf9677cc3539f9f6d5f5116b4",
+    "assets-src/goopybus-egg.png": "87321ca5e82ab0b127a5f8a3ce53223d0f091a438547a341a50f246faeb1bec4"
+  }
+}

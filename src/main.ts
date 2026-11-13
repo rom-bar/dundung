@@ -6,7 +6,9 @@ import type { GameAction, GameState, HomeUpgradeId, NeedKey, StageVisualEvent, S
 import { getStageSceneKind, StageSceneRenderer, stageCaption, stageLocation } from './render/stage/scene';
 import { StageEventPlayer, stageEventCaption, type AnimationSpeed } from './render/stage/event-player';
 import { PhaserStageAdapter } from './render/stage/phaser-stage';
+import type { NativeStagePreviewName } from './render/stage/native-scene';
 import { playSound, type SoundKind } from './platform/audio';
+import { StageSoundPlayer } from './platform/stage-audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
 import { attachTouchControls } from './platform/touch-controls';
@@ -69,6 +71,15 @@ declare global {
         failed: boolean;
         canvasAttached: boolean;
       };
+      previewStage: (name: NativeStagePreviewName | null, progress?: number, frozen?: boolean) => void;
+      getStageSceneMetrics: () => {
+        petHeight: number;
+        stageHeight: number;
+        activeParticleCount: number;
+        petWidth: number;
+        petSpriteHeight: number;
+        petFrameName: string;
+      } | null;
     };
   }
 }
@@ -151,6 +162,7 @@ let selectedStageTab: StageTab = 'care';
 let animationSpeed: AnimationSpeed = readAnimationSpeed();
 const stageEventPlayer = new StageEventPlayer();
 const stageRenderer = new StageSceneRenderer();
+const stageSound = new StageSoundPlayer();
 let petCodeOutput = '';
 let ghostCodeInput = '';
 let ghostBattleResult: GhostBattleResult | null = null;
@@ -333,9 +345,9 @@ root.innerHTML = `
 
     <dialog class="about-dialog" id="about-dialog" aria-labelledby="about-title">
       <button class="dialog-close" id="about-close" type="button" aria-label="Close about">×</button>
-      <p class="eyebrow">A pocket-sized original</p>
       <h2 id="about-title">About Pocket Pal</h2>
-      <p>Pocket Pal is a tiny, original pet game. Its pixel scenes, sounds, names, and code were made for this little world.</p>
+      <p>Pocket Pal’s code and original game design are made for this little world. Its stage atlas uses <a href="https://kenney.nl/assets/tiny-town" target="_blank" rel="noreferrer">Tiny Town</a> and <a href="https://kenney.nl/assets/tiny-dungeon" target="_blank" rel="noreferrer">Tiny Dungeon</a> by Kenney, plus <a href="https://clintbellanger.net/" target="_blank" rel="noreferrer">Tiny Creatures</a> by Clint Bellanger, all under CC0.</p>
+      <p>See the complete <a href="https://github.com/rom-bar/dundung/blob/main/CREDITS.md" target="_blank" rel="noreferrer">asset credits</a>. The native stage runs on <a href="https://phaser.io/" target="_blank" rel="noreferrer">Phaser</a> under the MIT license.</p>
       <p>There are no push notifications and no time-away penalties. When you leave, the world pauses.</p>
       <p class="dialog-footnote">Your save lives in this browser on this device.</p>
     </dialog>
@@ -440,6 +452,13 @@ root.innerHTML = `
 
 const canvas = must<HTMLCanvasElement>('#pet-scene');
 const stageEngine = new PhaserStageAdapter(canvas, stageRenderer);
+let artPreviewName: NativeStagePreviewName | null = null;
+const artPreviewCaptions: Record<NativeStagePreviewName, string> = {
+  corridor: 'Pip follows the meadow path.', intro: 'A meadow slime joins the path.',
+  attack: 'Pip winds up, pounces, and recovers.', crit: 'A critical pounce lands.',
+  chest: 'The chest opens with a little sparkle.', home: 'Pip takes a quiet moment at home.',
+  eating: 'Pip nibbles a biscuit.',
+};
 const overlay = must<HTMLDivElement>('#pause-overlay');
 const saveStatus = must<HTMLSpanElement>('#save-status');
 const signalCopy = must<HTMLSpanElement>('#signal-copy');
@@ -479,6 +498,7 @@ const miniMode = createMiniMode({
   canvas,
   getState: () => state,
   onTick: (dtMs) => worker.postMessage({ type: 'tick', dtMs }),
+  onStageFrame: (timeMs, deltaMs) => renderStageFrame(timeMs, deltaMs, true),
   onAction: sendAction,
   onOpen: (kind) => {
     miniModeButton.setAttribute('aria-pressed', 'true');
@@ -557,6 +577,11 @@ if (import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') {
       updateControls(seededState);
     },
     getStageRenderer: () => stageEngine.status,
+    previewStage: (name, progress, frozen) => {
+      artPreviewName = name;
+      stageEngine.setPreviewState(name, progress, frozen);
+    },
+    getStageSceneMetrics: () => stageEngine.getStageSceneMetrics(),
   };
 }
 
@@ -1736,6 +1761,36 @@ function isDecisionPhase(phase: DungeonRunState['phase'] | undefined): boolean {
     || phase === 'floor-end';
 }
 
+function renderStageFrame(timeMs: number, deltaMs: number, advancePlayback: boolean, rawDeltaMs = deltaMs): void {
+  if (!state) return;
+  const decisionPaused = dungeonDialog.open && isDecisionPhase(state.dungeon.activeRun?.phase);
+  const safeDelta = Number.isFinite(deltaMs) ? Math.max(0, Math.min(deltaMs, rules.simulation.maxStepMs)) : 0;
+  if (advancePlayback) stageEventPlayer.advance(safeDelta, animationSpeed, prefersReducedMotion.matches, decisionPaused);
+  const frame = stageEventPlayer.frame();
+  const renderStartedAt = performance.now();
+  stageEngine.render(state, timeMs / 1000, prefersReducedMotion.matches, frame, stageEventPlayer.hasBattleSequence(), decisionPaused);
+  stageSound.update(frame, muted, decisionPaused);
+  const renderDurationMs = performance.now() - renderStartedAt;
+  const visualState = stageRenderer.visualState() ?? state;
+  const isCombatFrame = state.dungeon.activeRun?.phase === 'combat' && !state.paused;
+  const location = must<HTMLElement>('#stage-location');
+  const locationLabel = artPreviewName ? `REVIEW · ${artPreviewName.toUpperCase()}` : stageLocation(visualState);
+  if (location.textContent !== locationLabel) location.textContent = locationLabel;
+  const detail = must<HTMLElement>('#stage-detail');
+  const detailLabel = artPreviewName ? artPreviewCaptions[artPreviewName] : stageCaption(visualState);
+  if (detail.textContent !== detailLabel) detail.textContent = detailLabel;
+  const ticker = must<HTMLElement>('#stage-ticker');
+  const caption = artPreviewName ? detailLabel : stageEventCaption(frame.event) ?? detailLabel;
+  if (ticker.textContent !== caption) ticker.textContent = caption;
+  if ((import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') && isCombatFrame && rawDeltaMs > 0) {
+    combatFrameTotalMs += rawDeltaMs;
+    combatFrameIntervalsMs.push(rawDeltaMs);
+    combatFrameSamples += 1;
+    combatRenderTotalMs += renderDurationMs;
+    combatRenderSamples += 1;
+  }
+}
+
 function startLoop(now: number): void {
   const loopStartedAt = performance.now();
   const isVisible = document.visibilityState === 'visible';
@@ -1743,35 +1798,11 @@ function startLoop(now: number): void {
     const rawDeltaMs = lastFrameTime > 0 ? Math.max(0, now - lastFrameTime) : 0;
     const deltaMs = Math.min(rawDeltaMs, rules.simulation.maxStepMs);
     if (!miniMode.open && isVisible && deltaMs > 0) worker.postMessage({ type: 'tick', dtMs: deltaMs });
-    if ((!miniMode.open && isVisible) || miniMode.kind === 'video') {
-      const decisionOverlayOpen = dungeonDialog.open && isDecisionPhase(state.dungeon.activeRun?.phase);
-      stageEventPlayer.advance(deltaMs, animationSpeed, prefersReducedMotion.matches, decisionOverlayOpen);
-    }
+    const shouldRenderStage = !miniMode.open && isVisible;
     lastFrameTime = miniMode.open ? 0 : now;
-    if (isVisible || miniMode.kind === 'video') {
-      const frame = stageEventPlayer.frame();
-      const renderStartedAt = performance.now();
-      stageEngine.render(state, now / 1000, prefersReducedMotion.matches, frame, stageEventPlayer.hasBattleSequence());
-      const renderDurationMs = performance.now() - renderStartedAt;
-      const visualState = stageRenderer.visualState() ?? state;
-      const isCombatFrame = state.dungeon.activeRun?.phase === 'combat' && !state.paused;
-      const location = must<HTMLElement>('#stage-location');
-      const locationLabel = stageLocation(visualState);
-      if (location.textContent !== locationLabel) location.textContent = locationLabel;
-      const detail = must<HTMLElement>('#stage-detail');
-      const detailLabel = stageCaption(visualState);
-      if (detail.textContent !== detailLabel) detail.textContent = detailLabel;
-      const ticker = must<HTMLElement>('#stage-ticker');
-      const caption = stageEventCaption(frame.event) ?? detailLabel;
-      if (ticker.textContent !== caption) ticker.textContent = caption;
-      if ((import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') && isCombatFrame) {
-        if (rawDeltaMs > 0) {
-          combatFrameTotalMs += rawDeltaMs;
-          combatFrameIntervalsMs.push(rawDeltaMs);
-          combatFrameSamples += 1;
-        }
-        combatRenderTotalMs += renderDurationMs;
-        combatRenderSamples += 1;
+    if (shouldRenderStage) {
+      renderStageFrame(now, deltaMs, true, rawDeltaMs);
+      if ((import.meta.env.DEV || import.meta.env.VITE_E2E === 'true') && state.dungeon.activeRun?.phase === 'combat' && !state.paused) {
         combatLoopWorkTotalMs += performance.now() - loopStartedAt;
         combatLoopWorkSamples += 1;
       }
@@ -1785,11 +1816,16 @@ function startLoop(now: number): void {
 renderNeedList();
 renderFoodActions();
 applyControlSettings();
+root.addEventListener('pointerdown', (event) => {
+  const button = (event.target as Element | null)?.closest<HTMLButtonElement>('button');
+  if (button && !button.disabled && !button.matches('[data-care-action]')) stageSound.click(muted);
+});
 const stageResizeObserver = new ResizeObserver(() => stageEngine.resize());
 stageResizeObserver.observe(canvas);
 stageEngine.resize();
 window.addEventListener('pagehide', () => {
   stageResizeObserver.disconnect();
+  stageSound.dispose();
   stageEngine.dispose();
 }, { once: true });
 void stageEngine.boot().catch((error: unknown) => {
@@ -1828,6 +1864,7 @@ soundToggle.addEventListener('click', () => {
   writeSetting('pocket-pal-muted', muted);
   soundToggle.setAttribute('aria-pressed', String(muted));
   soundToggle.innerHTML = `<span class="button-icon" aria-hidden="true">${muted ? '♪' : '♫'}</span><span>${muted ? 'Sound off' : 'Sound on'}</span>`;
+  stageSound.setMuted(muted);
   if (!muted) playSound('wake', false);
 });
 crtToggle.addEventListener('click', () => {

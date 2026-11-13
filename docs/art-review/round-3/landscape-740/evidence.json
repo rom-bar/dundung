@@ -1,0 +1,38 @@
+{
+  "round": "3",
+  "project": "landscape-740",
+  "states": [
+    "corridor",
+    "intro",
+    "attack",
+    "crit",
+    "chest",
+    "home",
+    "eating"
+  ],
+  "attackFrames": 8,
+  "attackProgress": [
+    0,
+    0.16,
+    0.3,
+    0.45,
+    0.48,
+    0.52,
+    0.72,
+    1
+  ],
+  "layout": {
+    "viewport": {
+      "width": 740,
+      "height": 360
+    },
+    "stage": {
+      "width": 722,
+      "height": 111.1875
+    },
+    "scrollWidth": 740,
+    "scrollHeight": 360,
+    "seed": 3457308494
+  },
+  "errors": []
+}

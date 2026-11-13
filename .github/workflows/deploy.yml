@@ -44,6 +44,7 @@ jobs:
             playwright-report/
             test-results/
             docs/screenshots/
+            docs/art-review/
           if-no-files-found: warn
       - name: Build offline site
         run: npm run build

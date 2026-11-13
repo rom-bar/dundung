@@ -786,6 +786,36 @@ test('mini mode keeps the worker active while the main page is hidden and pauses
   await page.getByRole('button', { name: 'Open mini mode' }).click();
   const mini = await popupPromise;
   await expect(mini.locator('#mini-scene')).toBeVisible();
+  const scene = await mini.locator('#mini-scene').evaluate((element) => {
+    const video = element as HTMLVideoElement;
+    const rect = video.getBoundingClientRect();
+    return {
+      tagName: video.tagName,
+      hasStream: Boolean(video.srcObject),
+      liveVideoTracks: video.srcObject ? (video.srcObject as MediaStream).getVideoTracks().filter((track) => track.readyState === 'live').length : 0,
+      width: rect.width,
+      height: rect.height,
+    };
+  });
+  expect(scene.tagName).toBe('VIDEO');
+  expect(scene.hasStream).toBe(true);
+  expect(scene.liveVideoTracks).toBeGreaterThan(0);
+  expect(scene.width).toBeGreaterThan(0);
+  expect(scene.height).toBeGreaterThan(70);
+  const miniBounds = await mini.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    height: document.documentElement.clientHeight,
+    scrollWidth: document.documentElement.scrollWidth,
+    scrollHeight: document.documentElement.scrollHeight,
+    controls: [...document.querySelectorAll<HTMLElement>('[data-mini-action]')].map((control) => {
+      const rect = control.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, bottom: rect.bottom };
+    }),
+  }));
+  expect(miniBounds.scrollWidth).toBeLessThanOrEqual(miniBounds.width);
+  expect(miniBounds.scrollHeight).toBeLessThanOrEqual(miniBounds.height);
+  expect(miniBounds.controls).toHaveLength(4);
+  expect(miniBounds.controls.every((control) => control.left >= 0 && control.right <= miniBounds.width && control.bottom <= miniBounds.height)).toBe(true);
   await expect(mini.locator('#mini-dungeon')).toBeVisible();
   await expect(mini.locator('#mini-dungeon-floor')).toHaveText('Floor 1');
   await expect(mini.locator('#mini-dungeon-room')).toContainText('Choose a room');

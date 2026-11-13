@@ -1,13 +1,27 @@
 import type { GameState } from '../../core/types';
 import type { StageEventFrame } from './event-player';
+import type { NativeStageBridge, NativeStagePreviewName, NativeStageScene } from './native-scene';
 import type { StageSceneRenderer } from './scene';
 
 const WIDTH = 240;
 const HEIGHT = 160;
-const TEXTURE_KEY = 'pocket-pal-stage-compat';
 type PhaserModule = typeof import('phaser');
-type PhaserGame = { destroy: (removeCanvas: boolean, noReturn?: boolean) => void; scale: { refresh: () => void } };
 type PhaserModuleInterop = PhaserModule & { default?: PhaserModule };
+type PhaserGame = {
+  destroy: (removeCanvas: boolean, noReturn?: boolean) => void;
+  scale: { refresh: () => void; resize: (width: number, height: number) => void };
+  step?: (time: number, delta: number) => void;
+  loop?: { stop: () => void };
+};
+
+type NativeStageMetrics = {
+  petHeight: number;
+  stageHeight: number;
+  activeParticleCount: number;
+  petWidth: number;
+  petSpriteHeight: number;
+  petFrameName: string;
+};
 
 export type StageRendererStatus = {
   type: 'phaser' | 'fallback';
@@ -16,28 +30,24 @@ export type StageRendererStatus = {
   canvasAttached: boolean;
 };
 
-/** Bridges the existing Step 1 renderer into Phaser without changing visuals. */
+/** Owns the native Phaser scene, while keeping the old renderer as a first-paint/import fallback. */
 export class PhaserStageAdapter {
-  private readonly sourceCanvas: HTMLCanvasElement;
-  private game: PhaserGame | null = null;
-  private texture: { refresh: () => void } | null = null;
   private readyPromise: Promise<void> | null = null;
   private resolveReady: (() => void) | null = null;
   private rejectReady: ((error: unknown) => void) | null = null;
+  private game: PhaserGame | null = null;
+  private nativeScene: NativeStageScene | null = null;
   private phaserReady = false;
-  private disposed = false;
   private phaserFailed = false;
+  private disposed = false;
   private cssWidth = WIDTH;
   private cssHeight = HEIGHT;
+  private lastStepTime = 0;
+  private previewName: NativeStagePreviewName | null = null;
+  private previewProgress = 0.5;
+  private previewFrozen = true;
 
-  constructor(private readonly canvas: HTMLCanvasElement, private readonly renderer: StageSceneRenderer) {
-    this.sourceCanvas = document.createElement('canvas');
-    this.sourceCanvas.width = WIDTH;
-    this.sourceCanvas.height = HEIGHT;
-    this.sourceCanvas.setAttribute('aria-hidden', 'true');
-    // display:none makes clientWidth/clientHeight zero; dimensions are passed explicitly during resize.
-    this.sourceCanvas.style.cssText = 'position:absolute;width:240px;height:160px;visibility:hidden;pointer-events:none;';
-  }
+  constructor(private readonly canvas: HTMLCanvasElement, private readonly renderer: StageSceneRenderer) {}
 
   get ready(): boolean { return this.phaserReady; }
 
@@ -52,7 +62,8 @@ export class PhaserStageAdapter {
 
   boot(): Promise<void> {
     if (this.readyPromise) return this.readyPromise;
-    this.readyPromise = import('phaser').then((module) => this.createGame(module)).catch((error: unknown) => {
+    this.readyPromise = Promise.all([import('phaser'), import('./native-scene'), document.fonts.ready])
+      .then(([module, scene]) => this.createGame(module, scene.createNativeStageScene)).catch((error: unknown) => {
       this.phaserFailed = true;
       this.rejectReady?.(error);
       this.resolveReady = null;
@@ -65,30 +76,46 @@ export class PhaserStageAdapter {
   }
 
   resize(): void {
-    const cssWidth = this.canvas.clientWidth || WIDTH;
-    const cssHeight = this.canvas.clientHeight || HEIGHT;
-    this.cssWidth = cssWidth;
-    this.cssHeight = cssHeight;
-    this.renderer.resize(this.canvas, cssWidth, cssHeight);
-    this.renderer.resize(this.sourceCanvas, cssWidth, cssHeight);
-    this.game?.scale.refresh();
+    this.cssWidth = Math.max(1, Math.round(this.canvas.clientWidth || WIDTH));
+    this.cssHeight = Math.max(1, Math.round(this.canvas.clientHeight || HEIGHT));
+    this.renderer.resize(this.canvas, this.cssWidth, this.cssHeight);
+    if (this.game) {
+      // Keep the backing store in lockstep with CSS pixels. Phaser's native
+      // renderer then preserves atlas aspect instead of object-fitting 240x160.
+      this.game.scale.resize(this.cssWidth, this.cssHeight);
+      this.nativeScene?.resizeStage(this.cssWidth, this.cssHeight);
+      this.game.scale.refresh();
+    }
   }
 
-  render(state: GameState, nowSeconds: number, reducedMotion: boolean, eventFrame: StageEventFrame | null, hasBattleSequence: boolean): void {
-    this.renderer.update(state, nowSeconds, reducedMotion, eventFrame, hasBattleSequence);
-    // First paint and import/init failure stay visible on the real canvas.
-    if (!this.game || this.phaserFailed) {
+  render(state: GameState, nowSeconds: number, reducedMotion: boolean, eventFrame: StageEventFrame | null, hasBattleSequence: boolean, decisionPaused = false): void {
+    this.renderer.update(state, nowSeconds, reducedMotion, eventFrame, hasBattleSequence, decisionPaused);
+    if (!this.game || this.phaserFailed || !this.phaserReady) {
+      // The old canvas renderer is intentionally only a first-paint/import failure fallback.
       this.renderer.draw(this.canvas, this.cssWidth, this.cssHeight);
       return;
     }
-    this.renderer.draw(this.sourceCanvas, this.cssWidth, this.cssHeight);
-    this.texture?.refresh();
+    const safeNow = Number.isFinite(nowSeconds) ? Math.max(0, nowSeconds * 1000) : 0;
+    const previousStepTime = this.lastStepTime;
+    const stepTime = previousStepTime ? Math.max(previousStepTime + 0.1, safeNow) : safeNow;
+    this.lastStepTime = stepTime;
+    this.game.step?.(stepTime, previousStepTime ? stepTime - previousStepTime : 16.67);
+  }
+
+  setPreviewState(name: NativeStagePreviewName | null, progress = 0.5, frozen = true): void {
+    this.previewName = name;
+    this.previewProgress = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0.5));
+    this.previewFrozen = frozen;
+    this.nativeScene?.setPreviewState(name, this.previewProgress, frozen);
+  }
+
+  getStageSceneMetrics(): NativeStageMetrics | null {
+    return this.nativeScene?.getMetrics?.() ?? null;
   }
 
   clear(): void {
-    this.renderer.clear(this.canvas);
-    this.renderer.clear(this.sourceCanvas);
-    this.texture?.refresh();
+    if (!this.phaserReady) this.renderer.clear(this.canvas);
+    this.lastStepTime = 0;
   }
 
   dispose(): void {
@@ -99,25 +126,31 @@ export class PhaserStageAdapter {
     this.readyPromise = null;
   }
 
-  private createGame(module: PhaserModuleInterop): Promise<void> {
+  private createGame(module: PhaserModuleInterop, createNativeStageScene: typeof import('./native-scene').createNativeStageScene): Promise<void> {
     if (this.disposed) return Promise.resolve();
     const Phaser = module.default ?? module;
     const adapter = this;
-    const sourceCanvas = this.sourceCanvas;
+    const bridge: NativeStageBridge = {
+      getState: () => adapter.renderer.visualState(),
+      getEventFrame: () => adapter.renderer.getEventFrame(),
+      getNowSeconds: () => adapter.renderer.getTimeSeconds(),
+      isReducedMotion: () => adapter.renderer.isReducedMotion(),
+      hasBattleSequence: () => adapter.renderer.hasBattleSequence(),
+      isDecisionPaused: () => adapter.renderer.isDecisionPaused(),
+    };
+    const NativeScene = createNativeStageScene(Phaser, bridge);
     const ready = new Promise<void>((resolve, reject) => {
       this.resolveReady = resolve;
       this.rejectReady = reject;
     });
-    const AdapterScene = class extends Phaser.Scene {
-      constructor() { super({ key: 'PocketPalStage' }); }
+    const Scene = class extends NativeScene {
       create(): void {
-        const scene = this as unknown as {
-          textures: { addCanvas: (key: string, canvas: HTMLCanvasElement) => { refresh: () => void } };
-          add: { image: (x: number, y: number, key: string) => { setOrigin: (x: number, y: number) => void } };
-        };
-        const canvasTexture = scene.textures.addCanvas(TEXTURE_KEY, sourceCanvas);
-        adapter.texture = canvasTexture;
-        scene.add.image(0, 0, TEXTURE_KEY).setOrigin(0, 0);
+        super.create();
+        adapter.nativeScene = this as unknown as NativeStageScene;
+        adapter.nativeScene.resizeStage(adapter.cssWidth, adapter.cssHeight);
+        adapter.nativeScene.setPreviewState(adapter.previewName, adapter.previewProgress, adapter.previewFrozen);
+        // Loader/create has completed; from this point the parent owns the event clock.
+        adapter.game?.loop?.stop();
         adapter.phaserReady = true;
         adapter.resolveReady?.();
         adapter.resolveReady = null;
@@ -126,11 +159,19 @@ export class PhaserStageAdapter {
     };
     try {
       this.game = new Phaser.Game({
-        type: Phaser.CANVAS, canvas: this.canvas, width: WIDTH, height: HEIGHT, zoom: 1,
-        pixelArt: true, roundPixels: true, antialias: false, transparent: true,
+        type: Phaser.CANVAS,
+        canvas: this.canvas,
+        width: this.cssWidth,
+        height: this.cssHeight,
+        zoom: 1,
+        pixelArt: true,
+        roundPixels: true,
+        antialias: false,
+        transparent: true,
         render: { antialias: false, pixelArt: true, roundPixels: true },
-        scale: { mode: Phaser.Scale.NONE, width: WIDTH, height: HEIGHT, autoRound: true },
-        scene: AdapterScene, banner: false,
+        scale: { mode: Phaser.Scale.NONE, width: this.cssWidth, height: this.cssHeight, autoRound: true },
+        scene: Scene,
+        banner: false,
       });
     } catch (error: unknown) {
       this.rejectReady?.(error);
@@ -140,11 +181,10 @@ export class PhaserStageAdapter {
   }
 
   private destroyPhaserGame(): void {
-    // The supplied canvas belongs to the app, not Phaser. Keep it in the DOM
-    // for document/video PiP and for page lifecycle teardown.
     this.game?.destroy(false, false);
     this.game = null;
-    this.texture = null;
+    this.nativeScene = null;
     this.phaserReady = false;
+    this.lastStepTime = 0;
   }
 }

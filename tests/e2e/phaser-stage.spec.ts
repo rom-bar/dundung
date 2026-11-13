@@ -26,11 +26,12 @@ test('production preview boots the real Phaser renderer after its lazy chunk loa
     const lazyPhaserChunk = performance.getEntriesByType('resource')
       .map((entry) => entry.name)
       .find((name) => /phaser[-\w]*\.js/.test(name));
-    return { width: canvas.width, height: canvas.height, nonTransparentPixels, lazyPhaserChunk };
+    const rect = canvas.getBoundingClientRect();
+    return { width: canvas.width, height: canvas.height, cssWidth: rect.width, cssHeight: rect.height, nonTransparentPixels, lazyPhaserChunk };
   });
 
-  expect(evidence.width).toBe(240);
-  expect(evidence.height).toBe(160);
+  expect(Math.abs(evidence.width - evidence.cssWidth)).toBeLessThanOrEqual(1);
+  expect(Math.abs(evidence.height - evidence.cssHeight)).toBeLessThanOrEqual(1);
   expect(evidence.nonTransparentPixels).toBeGreaterThan(0);
   expect(evidence.lazyPhaserChunk).toBeTruthy();
   expect(consoleErrors).toEqual([]);

@@ -1,0 +1,1348 @@
+{
+  "texture": "stage/atlas",
+  "tileSize": 16,
+  "frames": {
+    "biome1.ground.grass": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.ground.grass-detail": {
+      "frame": {
+        "x": 16,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.ground.flower": {
+      "frame": {
+        "x": 32,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.tree.young": {
+      "frame": {
+        "x": 48,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.tree.round": {
+      "frame": {
+        "x": 64,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.tree.tall": {
+      "frame": {
+        "x": 80,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.tree.young-flip": {
+      "frame": {
+        "x": 96,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.stone.gray": {
+      "frame": {
+        "x": 112,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.stone.blue": {
+      "frame": {
+        "x": 128,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.stone.gray-2": {
+      "frame": {
+        "x": 144,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "biome1.canopy.soft": {
+      "frame": {
+        "x": 160,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "chest.closed": {
+      "frame": {
+        "x": 176,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "chest.closed-highlight": {
+      "frame": {
+        "x": 192,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "food.biscuit": {
+      "frame": {
+        "x": 208,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.egg": {
+      "frame": {
+        "x": 224,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "icon.coin": {
+      "frame": {
+        "x": 240,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "icon.gem": {
+      "frame": {
+        "x": 0,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "icon.bag": {
+      "frame": {
+        "x": 16,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "icon.heart": {
+      "frame": {
+        "x": 32,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.idle": {
+      "frame": {
+        "x": 48,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.idle-2": {
+      "frame": {
+        "x": 64,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.walk": {
+      "frame": {
+        "x": 80,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.walk-2": {
+      "frame": {
+        "x": 96,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.happy": {
+      "frame": {
+        "x": 112,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.sleep": {
+      "frame": {
+        "x": 128,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.sleep-2": {
+      "frame": {
+        "x": 144,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.hurt": {
+      "frame": {
+        "x": 160,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.faint": {
+      "frame": {
+        "x": 176,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.idle": {
+      "frame": {
+        "x": 192,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.idle-2": {
+      "frame": {
+        "x": 208,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.attack": {
+      "frame": {
+        "x": 224,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.hurt": {
+      "frame": {
+        "x": 240,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.death": {
+      "frame": {
+        "x": 0,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.variant": {
+      "frame": {
+        "x": 16,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.variant-2": {
+      "frame": {
+        "x": 32,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "particle.sparkle-1": {
+      "frame": {
+        "x": 48,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "particle.sparkle-2": {
+      "frame": {
+        "x": 64,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "particle.sparkle-3": {
+      "frame": {
+        "x": 80,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "particle.sparkle-4": {
+      "frame": {
+        "x": 96,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "dungeon.floor": {
+      "frame": {
+        "x": 112,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "dungeon.path": {
+      "frame": {
+        "x": 128,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "dungeon.wall": {
+      "frame": {
+        "x": 144,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "dungeon.torch": {
+      "frame": {
+        "x": 160,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.hit-flash": {
+      "frame": {
+        "x": 176,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.fire": {
+      "frame": {
+        "x": 192,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.water": {
+      "frame": {
+        "x": 208,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.moss": {
+      "frame": {
+        "x": 224,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.storm": {
+      "frame": {
+        "x": 240,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "pet1.rabbit.shadow": {
+      "frame": {
+        "x": 0,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.hit-flash": {
+      "frame": {
+        "x": 16,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.fire": {
+      "frame": {
+        "x": 32,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.water": {
+      "frame": {
+        "x": 48,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.moss": {
+      "frame": {
+        "x": 64,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.storm": {
+      "frame": {
+        "x": 80,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "enemy1.slime.shadow": {
+      "frame": {
+        "x": 96,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "particle.gold": {
+      "frame": {
+        "x": 112,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "particle.heal": {
+      "frame": {
+        "x": 128,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    },
+    "particle.dust": {
+      "frame": {
+        "x": 144,
+        "y": 48,
+        "w": 16,
+        "h": 16
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 16
+      }
+    }
+  },
+  "animations": {
+    "pet1.idle": {
+      "frames": [
+        "pet1.rabbit.idle",
+        "pet1.rabbit.idle-2"
+      ],
+      "frameRate": 2,
+      "repeat": -1
+    },
+    "pet1.walk": {
+      "frames": [
+        "pet1.rabbit.walk",
+        "pet1.rabbit.walk-2"
+      ],
+      "frameRate": 6,
+      "repeat": -1
+    },
+    "pet1.attack": {
+      "frames": [
+        "pet1.rabbit.happy",
+        "pet1.rabbit.idle"
+      ],
+      "frameRate": 8,
+      "repeat": 0
+    },
+    "pet1.hurt": {
+      "frames": [
+        "pet1.rabbit.hurt",
+        "pet1.rabbit.idle"
+      ],
+      "frameRate": 5,
+      "repeat": 0
+    },
+    "pet1.eat": {
+      "frames": [
+        "pet1.rabbit.happy",
+        "pet1.rabbit.idle",
+        "pet1.rabbit.happy"
+      ],
+      "frameRate": 4,
+      "repeat": 0
+    },
+    "pet1.sleep": {
+      "frames": [
+        "pet1.rabbit.sleep",
+        "pet1.rabbit.sleep-2"
+      ],
+      "frameRate": 2,
+      "repeat": -1
+    },
+    "pet1.happy": {
+      "frames": [
+        "pet1.rabbit.happy",
+        "pet1.rabbit.idle-2"
+      ],
+      "frameRate": 5,
+      "repeat": 1
+    },
+    "pet1.faint": {
+      "frames": [
+        "pet1.rabbit.faint",
+        "pet1.rabbit.sleep"
+      ],
+      "frameRate": 3,
+      "repeat": 0
+    },
+    "enemy1.idle": {
+      "frames": [
+        "enemy1.slime.idle",
+        "enemy1.slime.idle-2"
+      ],
+      "frameRate": 3,
+      "repeat": -1
+    },
+    "enemy1.attack": {
+      "frames": [
+        "enemy1.slime.attack",
+        "enemy1.slime.idle"
+      ],
+      "frameRate": 7,
+      "repeat": 0
+    },
+    "enemy1.hurt": {
+      "frames": [
+        "enemy1.slime.hurt",
+        "enemy1.slime.idle"
+      ],
+      "frameRate": 6,
+      "repeat": 0
+    },
+    "enemy1.death": {
+      "frames": [
+        "enemy1.slime.death",
+        "enemy1.slime.idle"
+      ],
+      "frameRate": 5,
+      "repeat": 0
+    },
+    "enemy1.variant-idle": {
+      "frames": [
+        "enemy1.slime.variant",
+        "enemy1.slime.variant-2"
+      ],
+      "frameRate": 3,
+      "repeat": -1
+    },
+    "chest.open": {
+      "frames": [
+        "chest.closed",
+        "chest.closed-highlight"
+      ],
+      "frameRate": 4,
+      "repeat": 0
+    },
+    "particle.sparkle": {
+      "frames": [
+        "particle.sparkle-1",
+        "particle.sparkle-2",
+        "particle.sparkle-3",
+        "particle.sparkle-4"
+      ],
+      "frameRate": 12,
+      "repeat": 0
+    }
+  },
+  "layers": [
+    {
+      "id": "biome1.far",
+      "parallax": 0.72,
+      "frames": [
+        "biome1.canopy.soft",
+        "biome1.tree.tall"
+      ]
+    },
+    {
+      "id": "biome1.mid",
+      "parallax": 0.88,
+      "frames": [
+        "biome1.tree.round",
+        "biome1.tree.young",
+        "biome1.stone.gray"
+      ]
+    },
+    {
+      "id": "biome1.ground",
+      "parallax": 1,
+      "frames": [
+        "biome1.ground.grass",
+        "biome1.ground.grass-detail",
+        "biome1.ground.flower",
+        "biome1.stone.blue"
+      ]
+    },
+    {
+      "id": "dungeon",
+      "parallax": 1,
+      "frames": [
+        "dungeon.floor",
+        "dungeon.path",
+        "dungeon.wall",
+        "dungeon.torch"
+      ]
+    }
+  ],
+  "sourceTransforms": {
+    "palette-*": "original alpha and luminosity mapped to the documented element color",
+    "*-fill": "solid color through original source alpha, for Canvas-compatible hit flashes and tiny particles",
+    "flip-x": "deterministic horizontal flip of original source tile",
+    "slime-tint": "deterministic tint of original slime pixels; no geometry added",
+    "slime-tint-flip-x": "deterministic tint followed by horizontal flip",
+    "downsample-nearest-2x": "full 32x32 RGBA source resized to 16x16 with nearest-neighbor sampling; alpha preserved",
+    "crop": "sourceMember records the original PNG filename and crop coordinates",
+    "procedural-actor-motion": "pet/slime state changes reuse one verified base sprite; renderer may apply scale/rotation/food overlay and must not imply alternate source poses"
+  },
+  "semanticChoices": {
+    "pet1": "All pet1.rabbit.* frames use Tiny Creatures tile 0152 (white rabbit); only orientation, alpha-preserving flash, and element palette variants differ.",
+    "enemy1": "All enemy1.slime.* frames use Tiny Creatures tile 0099 (green slime-like creature); only orientation, alpha-preserving flash, and element palette variants differ.",
+    "chest": "chest.closed is Tiny Dungeon sheet tile 089 and chest.closed-highlight is tile 090 (same chest closed/open), not the Tiny Town door icons.",
+    "food": "food.biscuit is the first 16x16 tile of Henry Software's henry-food.png, a cookie with chocolate chips.",
+    "egg": "pet1.egg is the full GoopyBus 32x32 RGBA egg downsampled to 16x16 nearest-neighbor; it remains a pre-hatch egg.",
+    "dungeonUtilities": "Tiny Dungeon sheet tiles 048, 050, 014, and 125 provide floor, path, wall, and torch."
+  }
+}

@@ -372,6 +372,8 @@ export class StageSceneRenderer {
   private timeSeconds = 0;
   private reducedMotion = false;
   private eventFrame: StageEventFrame | null = null;
+  private battleSequence = false;
+  private decisionPaused = false;
   private cssWidth = WIDTH;
   private cssHeight = HEIGHT;
 
@@ -380,7 +382,7 @@ export class StageSceneRenderer {
     if (run && (run.phase === 'tactic' || run.phase === 'combat')) this.lastBattleState = state;
   }
 
-  update(state: GameState, timeSeconds: number, reducedMotion: boolean, eventFrame: StageEventFrame | null, hasBattleSequence = false): void {
+  update(state: GameState, timeSeconds: number, reducedMotion: boolean, eventFrame: StageEventFrame | null, hasBattleSequence = false, decisionPaused = false): void {
     const run = state.dungeon.activeRun;
     const battlePhase = Boolean(run && (run.phase === 'tactic' || run.phase === 'combat'));
     if (battlePhase) this.lastBattleState = state;
@@ -405,6 +407,8 @@ export class StageSceneRenderer {
     this.timeSeconds = timeSeconds;
     this.reducedMotion = reducedMotion;
     this.eventFrame = eventFrame;
+    this.battleSequence = hasBattleSequence;
+    this.decisionPaused = decisionPaused;
   }
 
   draw(canvas: HTMLCanvasElement, cssWidth = this.cssWidth, cssHeight = this.cssHeight): void {
@@ -414,6 +418,26 @@ export class StageSceneRenderer {
 
   visualState(): GameState | null {
     return this.state;
+  }
+
+  getEventFrame(): StageEventFrame | null {
+    return this.eventFrame;
+  }
+
+  getTimeSeconds(): number {
+    return this.timeSeconds;
+  }
+
+  isReducedMotion(): boolean {
+    return this.reducedMotion;
+  }
+
+  hasBattleSequence(): boolean {
+    return this.battleSequence;
+  }
+
+  isDecisionPaused(): boolean {
+    return this.decisionPaused;
   }
 
   clear(canvas: HTMLCanvasElement): void {
