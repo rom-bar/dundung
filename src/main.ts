@@ -1,4 +1,5 @@
 import rules from './data/rules.json';
+import endlessRules from './data/endless-rules.json';
 import foods from './data/foods.json';
 import { createInitialState, getMood, getNeedSignals } from './core/game';
 import type { GameAction, GameState, HomeUpgradeId, NeedKey, StatKey, WorkerOutMessage } from './core/types';
@@ -11,6 +12,9 @@ import { createMiniMode } from './platform/mini-mode';
 import { getAllForms, getEffectiveStats, getEvolutionWeightHints, getFormDefinition, getLevelCap, getTraitList, xpToNextLevel } from './core/progression';
 import { getBiomeForFloor, getDungeonData } from './core/dungeon';
 import { getAchievementStatuses, getCosmeticName, getHomeEffects, getHomeUpgradeCost, getHomeUpgradeDefinitions, getTrainingCap } from './core/home';
+import { getAscensionMilestone, getAscensionPerks, getBestiaryCoinMultiplier, getCurrentUtcDateKey, getDifficultyModifiers } from './core/endless';
+import { createPetCodePayload, decodePetCode, encodePetCode } from './core/pet-code';
+import { simulateGhostBattle, type GhostBattleResult } from './core/ghost-battle';
 import {
   equipmentItemsHaveSameSlotAndRarity,
   getAffixDefinition,
@@ -26,7 +30,7 @@ import {
   getUpgradeSuccessChance,
   nextFusionRarity,
 } from './core/equipment';
-import type { AutoScrapThreshold, DungeonRoomType, DungeonRunState, EquipmentItem, EquipmentSlot, ItemRarity } from './core/types';
+import type { AscensionPerkId, AutoScrapThreshold, DungeonRoomType, DungeonRunState, EquipmentItem, EquipmentSlot, ItemRarity } from './core/types';
 import evolutions from './data/evolutions.json';
 import dungeonRules from './data/dungeon-rules.json';
 import './style.css';
@@ -80,8 +84,13 @@ let installButton: HTMLButtonElement | null = null;
 let selectedDungeonPack: string[] = [];
 let selectedGearTab: 'loadout' | 'bag' | 'workshop' = 'loadout';
 let selectedFuseIds: string[] = [];
-let selectedHomeTab: 'upgrades' | 'achievements' | 'records' = 'upgrades';
+let selectedHomeTab: 'upgrades' | 'achievements' | 'records' | 'endless' = 'upgrades';
 let selectedMealStat: StatKey = 'ATK';
+let selectedDungeonMode: 'standard' | 'daily' = 'standard';
+let petCodeOutput = '';
+let ghostCodeInput = '';
+let ghostBattleResult: GhostBattleResult | null = null;
+let ghostBattleError = '';
 
 root.innerHTML = `
   <div class="app-shell">
@@ -277,6 +286,7 @@ root.innerHTML = `
         <button class="home-tab" type="button" role="tab" data-home-tab="upgrades" aria-selected="true">Upgrades</button>
         <button class="home-tab" type="button" role="tab" data-home-tab="achievements" aria-selected="false">Achievements</button>
         <button class="home-tab" type="button" role="tab" data-home-tab="records" aria-selected="false">Records</button>
+        <button class="home-tab" type="button" role="tab" data-home-tab="endless" aria-selected="false">Endless</button>
       </div>
       <div class="home-content" id="home-content" aria-live="polite"></div>
     </dialog>
@@ -742,6 +752,47 @@ function renderHomeRecords(current: GameState): string {
   return `<section class="home-intro"><p class="eyebrow">A growing little history</p><h3>Pip's records</h3><p>Milestones and totals stay on this device.</p></section><div class="record-grid">${entries.map(([label, value]) => `<div class="record-card"><small>${escapeHtml(label)}</small><strong>${escapeHtml(String(value))}</strong></div>`).join('')}</div>`;
 }
 
+function renderHomeEndless(current: GameState): string {
+  const today = getCurrentUtcDateKey();
+  const dailyUsed = current.endless.dailyAttemptDate === today;
+  const canStart = !current.paused && !current.dungeon.activeRun && current.stage !== 'egg' && !current.sleeping && Boolean(current.evolution.formId);
+  const dailyStatus = dailyUsed ? 'Today’s attempt is already used. A new trial opens at 00:00 UTC.' : 'One attempt per UTC date. The route seed is fixed for today and works offline.';
+  const milestone = getAscensionMilestone(current.endless.ascensionRank);
+  const canAscend = canStart && milestone !== null && current.endless.bestFloorSinceAscension >= milestone;
+  const perks = getAscensionPerks().map((perk) => {
+    const rank = current.endless.ascensionPerks[perk.id];
+    const disabled = !canAscend || rank >= perk.maxStacks;
+    return `<article class="ascension-perk"><div><h4>${escapeHtml(perk.name)}</h4><p>${escapeHtml(perk.description)}</p></div><span class="perk-rank">${rank}/${perk.maxStacks}</span><button class="endless-action" type="button" data-endless-action="ascend" data-perk-id="${perk.id}" ${disabled ? 'disabled' : ''}>Ascend with this perk</button></article>`;
+  }).join('');
+  const modifiers = getDifficultyModifiers();
+  const selectedCount = current.endless.selectedModifierIds.length;
+  const modifierRows = modifiers.map((modifier) => {
+    const checked = current.endless.selectedModifierIds.includes(modifier.id);
+    const locked = current.paused || Boolean(current.dungeon.activeRun) || (!checked && selectedCount >= endlessRules.difficultyModifiers.selectionLimit);
+    return `<label class="modifier-row"><input type="checkbox" data-endless-modifier value="${modifier.id}" data-testid="modifier-${modifier.id}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}><span><strong>${escapeHtml(modifier.name)}</strong><small>${escapeHtml(modifier.description)}</small></span></label>`;
+  }).join('');
+  const discovered = new Set(current.endless.defeatedEnemyIds);
+  const bestiaryRows = dungeonData.enemies.map((enemy) => {
+    const found = discovered.has(enemy.id);
+    const biome = dungeonData.biomes.find((entry) => entry.id === enemy.biomeId)?.name ?? 'Unknown biome';
+    return `<li class="bestiary-entry${found ? ' is-known' : ' is-unknown'}"><strong>${found ? escapeHtml(enemy.name) : 'Unrecorded visitor'}</strong><small>${found ? escapeHtml(biome) : 'Meet this creature in the descent'}</small><span>${found ? 'Found' : 'Hidden'}</span></li>`;
+  }).join('');
+  const bestiaryBonus = Math.round((getBestiaryCoinMultiplier(current.endless.defeatedEnemyIds) - 1) * 100);
+  const petReady = Boolean(createPetCodePayload(current));
+  const battleResult = ghostBattleResult
+    ? `<section class="ghost-result" data-testid="ghost-result" role="status"><h4>${ghostBattleResult.winner === 'pocket-pal' ? 'Pip wins this friendly match' : ghostBattleResult.winner === 'ghost' ? 'The visiting pet wins' : 'A very even match'}</h4><p>${ghostBattleResult.turns} exchanges · Pip ${ghostBattleResult.pocketPalHp} HP · visitor ${ghostBattleResult.ghostHp} HP</p><ol>${ghostBattleResult.log.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ol></section>`
+    : ghostBattleError
+      ? `<p class="ghost-error" role="alert">${escapeHtml(ghostBattleError)}</p>`
+      : '<p class="ghost-empty">A battle is a local simulation. It gives no rewards and changes neither pet nor save.</p>';
+  return `<div class="endless-layout">
+    <section class="endless-daily"><div><h3>Daily trail</h3><p class="daily-date">${today} · UTC</p><p>${dailyStatus} There is no online leaderboard.</p></div><div class="daily-best"><small>Your best</small><strong>Floor ${current.endless.dailyBestFloor}</strong><span>${current.endless.dailyBestDate ?? 'No trial recorded yet'}</span></div><button class="endless-action" type="button" data-endless-action="daily" data-testid="open-daily-trial" ${dailyUsed || !canStart ? 'disabled' : ''}>${dailyUsed ? 'Today’s trial used' : 'Open today’s trial'}</button></section>
+    <section class="endless-section ascension-section"><h3>Ascension</h3><p class="endless-copy">Reach a depth milestone, then restart the dungeon at a harder scale for one permanent perk.</p><div class="ascension-progress"><span>Rank <strong>${current.endless.ascensionRank}</strong></span><span>Best since ascension <strong>Floor ${current.endless.bestFloorSinceAscension}</strong></span><span>${milestone === null ? 'Maximum rank reached' : `Next milestone · Floor ${milestone}`}</span></div><div class="ascension-perks">${perks}</div>${milestone !== null && !canAscend ? `<p class="endless-lock">Reach floor ${milestone} in a run, then return safely to ascend.</p>` : ''}</section>
+    <section class="endless-section modifier-section"><h3>Challenge modifiers</h3><p class="endless-copy">Choose up to ${endlessRules.difficultyModifiers.selectionLimit} for a standard run. Tougher enemies bring better rewards; Daily trials ignore these choices.</p><div class="modifier-list">${modifierRows}</div><p class="modifier-count">${selectedCount} / ${endlessRules.difficultyModifiers.selectionLimit} selected</p></section>
+    <section class="endless-section bestiary-section"><div class="section-heading-line"><div><h3>Bestiary</h3><p class="endless-copy">Record encounters for a small, permanent coin bonus.</p></div><strong>${discovered.size} / ${dungeonData.enemies.length}</strong></div><p class="bestiary-bonus">Field notes bonus · +${bestiaryBonus}% run coins</p><ul class="bestiary-list">${bestiaryRows}</ul></section>
+    <section class="endless-section ghost-section"><h3>Ghost battles</h3><p class="endless-copy">Share a short pet code with a friend, then simulate a friendly match on this device. Codes are checked and bounded before use; nothing is sent online.</p><div class="ghost-code-grid"><div class="ghost-code-column"><label for="pet-code-output">Your pet code</label><textarea id="pet-code-output" data-testid="pet-code-output" readonly rows="3" maxlength="${endlessRules.petCodes.maximumEncodedCharacters}" spellcheck="false">${escapeHtml(petCodeOutput)}</textarea><div class="ghost-buttons"><button class="endless-action" type="button" data-endless-action="export" ${!petReady ? 'disabled' : ''}>Create my code</button><button class="endless-action is-secondary" type="button" data-endless-action="copy-code" ${!petCodeOutput ? 'disabled' : ''}>Copy code</button></div></div><div class="ghost-code-column"><label for="ghost-code-input">Friend’s pet code</label><textarea id="ghost-code-input" data-testid="ghost-code-input" rows="3" maxlength="${endlessRules.petCodes.maximumEncodedCharacters}" spellcheck="false">${escapeHtml(ghostCodeInput)}</textarea><button class="endless-action" type="button" data-endless-action="ghost-battle" ${!petReady || current.paused ? 'disabled' : ''}>Validate and battle</button></div></div>${battleResult}</section>
+  </div>`;
+}
+
 function renderHome(current: GameState): void {
   homeWallet.innerHTML = `<span><small>Coins</small><strong>${current.dungeon.coins}</strong></span><span><small>Scrap</small><strong>${current.dungeon.scrap}</strong></span><span><small>Essence</small><strong>${current.dungeon.essence}</strong></span><span><small>Achievements</small><strong>${current.home.unlockedAchievementIds.length}</strong></span>`;
   homeDialog.querySelectorAll<HTMLButtonElement>('[data-home-tab]').forEach((tab) => {
@@ -749,7 +800,8 @@ function renderHome(current: GameState): void {
   });
   if (selectedHomeTab === 'upgrades') homeContent.innerHTML = renderHomeUpgrades(current);
   else if (selectedHomeTab === 'achievements') homeContent.innerHTML = renderHomeAchievements(current);
-  else homeContent.innerHTML = renderHomeRecords(current);
+  else if (selectedHomeTab === 'records') homeContent.innerHTML = renderHomeRecords(current);
+  else homeContent.innerHTML = renderHomeEndless(current);
 }
 
 function healthMeter(label: string, value: number, maximum: number, kind: string): string {
@@ -780,6 +832,9 @@ function renderDungeonStart(current: GameState): string {
   const active = current.stage !== 'egg' && !current.sleeping && Boolean(current.evolution.formId);
   const packLimit = getHomeEffects(current.home, current.formDex.length).packSlots;
   const meal = current.home.preparedMeal;
+  const today = getCurrentUtcDateKey();
+  const dailyUsed = current.endless.dailyAttemptDate === today;
+  const selectedModifierNames = getDifficultyModifiers().filter((modifier) => current.endless.selectedModifierIds.includes(modifier.id)).map((modifier) => modifier.name);
   const items = dungeonData.consumables.map((item) => `
     <label class="pack-choice">
       <input type="checkbox" data-pack-item value="${escapeHtml(item.id)}" ${selectedDungeonPack.includes(item.id) ? 'checked' : ''} />
@@ -790,22 +845,23 @@ function renderDungeonStart(current: GameState): string {
     ? 'Pip can enter after hatching.'
     : current.sleeping
       ? 'Wake Pip before setting out.'
-      : `Choose up to ${packLimit} run-only items. Unused items leave with the run.${meal ? ` Your meal will boost ${meal.stat} by ${Math.round(meal.bonus * 100)}%.` : ''}`;
+    : `Choose up to ${packLimit} run-only items. Unused items leave with the run.${meal ? ` Your meal will boost ${meal.stat} by ${Math.round(meal.bonus * 100)}%.` : ''}`;
   return `<div class="dungeon-start-grid">
-    <section class="dungeon-start-story"><p class="eyebrow">A new route every time</p><h3>Make a small plan, then see how far Pip can go.</h3><p>${escapeHtml(reason)}</p>
+    <section class="dungeon-start-story"><h3>Make a small plan, then see how far Pip can go.</h3><p>${escapeHtml(reason)}</p><div class="run-mode-picker" role="group" aria-label="Dungeon run mode"><button class="run-mode-choice" type="button" data-run-mode="standard" aria-pressed="${selectedDungeonMode === 'standard'}"><strong>Standard</strong><small>Choose your challenge settings</small></button><button class="run-mode-choice" type="button" data-run-mode="daily" data-testid="daily-mode" aria-pressed="${selectedDungeonMode === 'daily'}" ${dailyUsed ? 'disabled' : ''}><strong>Daily trial</strong><small>${today} · UTC${dailyUsed ? ' · already used' : ''}</small></button></div><p class="dungeon-note">${selectedDungeonMode === 'daily' ? `Today’s route uses a fixed seed. One attempt per UTC date; modifiers are off.${dailyUsed ? ' Today’s attempt is already used.' : ''}` : selectedModifierNames.length ? `Standard modifiers: ${escapeHtml(selectedModifierNames.join(', '))}. Change them in Home → Endless.` : 'Standard route · optional modifiers can be set in Home → Endless.'}</p>
       <div class="dungeon-records"><span><strong>${current.dungeon.coins}</strong><small>banked coins</small></span><span><strong>${current.dungeon.scrap}</strong><small>Scrap</small></span><span><strong>${current.dungeon.essence}</strong><small>Essence</small></span><span><strong>${current.dungeon.petDeepestFloor}</strong><small>this pet's best floor</small></span></div>
       <p class="dungeon-note">Leave safely to bank all carried gear and materials. Fainting keeps half the coins, random half the gear and half the materials.</p>
     </section>
     <section class="pack-picker" aria-labelledby="pack-title"><div class="dungeon-section-heading"><div><p class="eyebrow">Before the first step</p><h3 id="pack-title">Pack up to ${packLimit} items</h3></div><span class="pack-count" id="pack-count">0 / ${packLimit}</span></div>
       <div class="pack-choice-list">${items}</div>
-      <button class="primary-button dungeon-start-button" type="button" data-run-action="start" data-testid="dungeon-start" ${active ? '' : 'disabled'}>Start a run</button>
+      <button class="primary-button dungeon-start-button" type="button" data-run-action="start" data-testid="dungeon-start" ${active && !current.paused && !(selectedDungeonMode === 'daily' && dailyUsed) ? '' : 'disabled'}>${selectedDungeonMode === 'daily' ? 'Start today’s trial' : 'Start a run'}</button>
     </section>
   </div>`;
 }
 
 function bindDungeonStartControls(current: GameState): void {
   const startButton = dungeonContent.querySelector<HTMLButtonElement>('[data-run-action="start"]');
-  if (startButton) startButton.disabled = current.paused || current.stage === 'egg' || current.sleeping || !current.evolution.formId;
+  if (startButton) startButton.disabled = current.paused || current.stage === 'egg' || current.sleeping || !current.evolution.formId
+    || (selectedDungeonMode === 'daily' && current.endless.dailyAttemptDate === getCurrentUtcDateKey());
   const packChecks = [...dungeonContent.querySelectorAll<HTMLInputElement>('[data-pack-item]')];
   const packCount = dungeonContent.querySelector<HTMLElement>('#pack-count');
   const packLimit = getHomeEffects(current.home, current.formDex.length).packSlots;
@@ -842,6 +898,8 @@ function renderDungeon(current: GameState): void {
     .filter(([, multiplier]) => Math.abs(multiplier - 1) > 0.001)
     .map(([key, multiplier]) => `${key} ×${multiplier.toFixed(2)}`);
   const modifiers = [
+    ...(run.mode === 'daily' && run.dailyDateKey ? [`Daily trial · ${run.dailyDateKey} UTC`] : [`Standard · Ascension ${run.ascensionRank}`]),
+    ...run.modifierIds.map((id) => getDifficultyModifiers().find((modifier) => modifier.id === id)?.name).filter((name): name is string => Boolean(name)),
     ...runStats,
     ...(Math.abs(run.coinMultiplier - 1) > 0.001 ? [`Coins ×${run.coinMultiplier.toFixed(2)}`] : []),
   ];
@@ -1121,6 +1179,11 @@ function describeSignals(current: GameState): string {
   return signals.length ? needCopy[signals[0]!] : 'Pip is happy to have you here.';
 }
 
+function hasFocusedField(dialog: HTMLDialogElement): boolean {
+  const active = document.activeElement;
+  return active instanceof HTMLElement && dialog.contains(active) && active.matches('input, textarea, select');
+}
+
 function updateControls(current: GameState): void {
   root?.querySelectorAll<HTMLButtonElement>('[data-action]').forEach((button) => {
     const action = button.dataset.action;
@@ -1197,8 +1260,8 @@ function updateControls(current: GameState): void {
   dungeonOpen.disabled = current.paused || (!current.dungeon.activeRun && (current.sleeping || current.stage === 'egg' || !current.evolution.formId));
   dungeonOpen.setAttribute('aria-pressed', String(Boolean(current.dungeon.activeRun)));
   if (dungeonDialog.open) renderDungeon(current);
-  if (gearDialog.open) renderEquipment(current);
-  if (homeDialog.open) renderHome(current);
+  if (gearDialog.open && !hasFocusedField(gearDialog)) renderEquipment(current);
+  if (homeDialog.open && !hasFocusedField(homeDialog)) renderHome(current);
 
   overlay.hidden = !current.paused;
   if (current.paused) must<HTMLButtonElement>('#resume-button').focus({ preventScroll: true });
@@ -1369,12 +1432,14 @@ root.addEventListener('click', (event) => {
   } else if (button.dataset.gearAction) {
     activateGearAction(button);
   } else if (button.dataset.homeTab) {
-    if (button.dataset.homeTab === 'upgrades' || button.dataset.homeTab === 'achievements' || button.dataset.homeTab === 'records') {
+    if (button.dataset.homeTab === 'upgrades' || button.dataset.homeTab === 'achievements' || button.dataset.homeTab === 'records' || button.dataset.homeTab === 'endless') {
       selectedHomeTab = button.dataset.homeTab;
       if (state) renderHome(state);
     }
   } else if (button.dataset.homeAction) {
     activateHomeAction(button);
+  } else if (button.dataset.endlessAction) {
+    activateEndlessAction(button);
   } else if (button.id === 'forms-open') {
     if (state) renderFormDex(state);
     dexDialog.showModal();
@@ -1395,6 +1460,11 @@ root.addEventListener('click', (event) => {
     minigameStage.hidden = true;
     minigameChoices.hidden = false;
     if (state) updateControls(state);
+  } else if (button.dataset.runMode === 'standard' || button.dataset.runMode === 'daily') {
+    if (button.dataset.runMode !== 'daily' || state?.endless.dailyAttemptDate !== getCurrentUtcDateKey()) {
+      selectedDungeonMode = button.dataset.runMode;
+      if (state) renderDungeon(state);
+    }
   } else if (button.dataset.runAction) {
     activateDungeonAction(button);
   } else if (button.id === 'resume-button') {
@@ -1436,6 +1506,24 @@ homeDialog.addEventListener('change', (event) => {
   const target = event.target;
   if (target instanceof HTMLSelectElement && target.id === 'home-meal-stat' && Object.hasOwn(statLabels, target.value)) {
     selectedMealStat = target.value as StatKey;
+  } else if (target instanceof HTMLInputElement && target.hasAttribute('data-endless-modifier')) {
+    const selected = [...homeDialog.querySelectorAll<HTMLInputElement>('[data-endless-modifier]:checked')].map((input) => input.value);
+    sendAction({ type: 'endless-set-modifiers', modifierIds: selected });
+    const selectionLimit = endlessRules.difficultyModifiers.selectionLimit;
+    const countLabel = homeDialog.querySelector<HTMLElement>('.modifier-count');
+    if (countLabel) countLabel.textContent = `${selected.length} / ${selectionLimit} selected`;
+    homeDialog.querySelectorAll<HTMLInputElement>('[data-endless-modifier]').forEach((input) => {
+      input.disabled = Boolean(state?.paused || state?.dungeon.activeRun || (!input.checked && selected.length >= selectionLimit));
+    });
+  }
+});
+homeDialog.addEventListener('input', (event) => {
+  const target = event.target;
+  if (target instanceof HTMLTextAreaElement && target.id === 'ghost-code-input') {
+    ghostCodeInput = target.value.slice(0, endlessRules.petCodes.maximumEncodedCharacters);
+    if (target.value !== ghostCodeInput) target.value = ghostCodeInput;
+    ghostBattleResult = null;
+    ghostBattleError = '';
   }
 });
 gearDialog.addEventListener('change', (event) => {
@@ -1552,7 +1640,8 @@ function activateCareButton(button: HTMLButtonElement): void {
 function activateDungeonAction(button: HTMLButtonElement): void {
   const action = button.dataset.runAction;
   if (action === 'start') {
-    sendAction({ type: 'dungeon-start-run', consumables: [...selectedDungeonPack] });
+    const mode = selectedDungeonMode;
+    sendAction({ type: 'dungeon-start-run', consumables: [...selectedDungeonPack], mode, ...(mode === 'daily' ? { dateKey: getCurrentUtcDateKey() } : {}) });
   } else if (action === 'room') {
     const roomType = button.dataset.roomType;
     if (roomType && ['fight', 'elite', 'event', 'treasure', 'rest', 'shop', 'boss'].includes(roomType)) {
@@ -1620,6 +1709,85 @@ function activateHomeAction(button: HTMLButtonElement): void {
       sendAction({ type: 'home-cook-meal', stat: selectedMealStat });
     }
   }
+}
+
+function activateEndlessAction(button: HTMLButtonElement): void {
+  const action = button.dataset.endlessAction;
+  if (action === 'daily') {
+    selectedDungeonMode = 'daily';
+    selectedDungeonPack = [];
+    homeDialog.close();
+    if (state) renderDungeon(state);
+    dungeonDialog.showModal();
+  } else if (action === 'ascend') {
+    const perkId = button.dataset.perkId;
+    if (perkId && getAscensionPerks().some((perk) => perk.id === perkId)) {
+      sendAction({ type: 'endless-ascend', perkId: perkId as AscensionPerkId });
+    }
+  } else if (action === 'export') {
+    void createPetCode();
+  } else if (action === 'copy-code') {
+    void copyPetCode();
+  } else if (action === 'ghost-battle') {
+    void startGhostBattle();
+  }
+}
+
+async function createPetCode(): Promise<void> {
+  const current = state;
+  if (!current) return;
+  const payload = createPetCodePayload(current);
+  if (!payload) {
+    ghostBattleError = 'Hatch Pip and discover a form before creating a pet code.';
+    renderHome(current);
+    return;
+  }
+  try {
+    petCodeOutput = await encodePetCode(payload);
+    ghostBattleError = '';
+    renderHome(current);
+    const output = homeContent.querySelector<HTMLTextAreaElement>('#pet-code-output');
+    output?.focus();
+    output?.select();
+  } catch (error) {
+    ghostBattleError = error instanceof Error ? error.message : 'Pet code could not be created.';
+    renderHome(current);
+  }
+}
+
+async function copyPetCode(): Promise<void> {
+  if (!petCodeOutput) return;
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable.');
+    await navigator.clipboard.writeText(petCodeOutput);
+    showToast('Pet code copied. Share it with a friend.');
+  } catch {
+    const output = homeContent.querySelector<HTMLTextAreaElement>('#pet-code-output');
+    output?.focus();
+    output?.select();
+    showToast('The code is selected. Copy it from the text box.');
+  }
+}
+
+async function startGhostBattle(): Promise<void> {
+  const current = state;
+  if (!current) return;
+  const ownPet = createPetCodePayload(current);
+  if (!ownPet) {
+    ghostBattleError = 'Hatch Pip and discover a form before starting a ghost battle.';
+    ghostBattleResult = null;
+    renderHome(current);
+    return;
+  }
+  try {
+    const visitor = await decodePetCode(ghostCodeInput.trim());
+    ghostBattleResult = simulateGhostBattle(ownPet, visitor, (current.seed ^ current.generation) >>> 0);
+    ghostBattleError = '';
+  } catch (error) {
+    ghostBattleResult = null;
+    ghostBattleError = error instanceof Error ? error.message : 'This pet code could not be used.';
+  }
+  renderHome(current);
 }
 
 attachTouchControls({

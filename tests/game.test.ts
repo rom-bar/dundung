@@ -136,7 +136,7 @@ describe('save migration and seeded randomness', () => {
 
   it('migrates a schema-less save and repairs invalid need values', () => {
     const restored = migrateSave({ stage: 'baby', needs: { hunger: 200, happiness: 'lots' } });
-    expect(restored.schemaVersion).toBe(5);
+    expect(restored.schemaVersion).toBe(6);
     expect(restored.stage).toBe('baby');
     expect(restored.needs.hunger).toBe(100);
     expect(restored.needs.happiness).toBe(86);
@@ -155,7 +155,7 @@ describe('save migration and seeded randomness', () => {
       tendencies: { play: 0.75 },
       hallOfPets: [{ generation: 2, name: '<img src=x onerror=alert(1)>', formId: 'fire-emberguard', peakLevel: 999 }],
     });
-    expect(restored.schemaVersion).toBe(5);
+    expect(restored.schemaVersion).toBe(6);
     expect(restored.generationSeconds).toBe(123);
     expect(restored.stageSeconds).toBe(rules.lifeStages.stageMinutes.baby * 60);
     expect(restored.cooldowns.feed).toBe(rules.actionCooldownSeconds.feed);
@@ -168,7 +168,7 @@ describe('save migration and seeded randomness', () => {
     expect(restored.dungeon).toMatchObject({ coins: 0, deepestFloor: 0, petDeepestFloor: 0, runsCompleted: 0, activeRun: null });
   });
 
-  it('migrates v4 saves to bounded Home progression and lifetime records', () => {
+  it('migrates v4 saves to bounded Home progression, records and schema v6', () => {
     const restored = migrateSave({
       schemaVersion: 4,
       home: {
@@ -181,7 +181,7 @@ describe('save migration and seeded randomness', () => {
       },
       records: { totalCoinsBanked: -1, bestRunFloor: 'not-a-number' },
     });
-    expect(restored.schemaVersion).toBe(5);
+    expect(restored.schemaVersion).toBe(6);
     expect(restored.home.upgradeLevels).toEqual({ kitchen: 5, gym: 0, workshop: 2, nursery: 0, library: 0 });
     expect(restored.home.preparedMeal).toEqual({ stat: 'HP', bonus: 0.2 });
     expect(restored.home.unlockedAchievementIds).toEqual(['first-five-forms']);
@@ -190,6 +190,33 @@ describe('save migration and seeded randomness', () => {
     expect(restored.home.bossClearedFloors).toEqual([10]);
     expect(restored.records.totalCoinsBanked).toBe(0);
     expect(restored.records.bestRunFloor).toBe(0);
+  });
+
+  it('migrates schema-v5 Endless progress into bounded daily, ascension and Bestiary data', () => {
+    const restored = migrateSave({
+      schemaVersion: 5,
+      endless: {
+        dailyAttemptDate: '2026-02-30',
+        dailyBestFloor: 1e20,
+        dailyBestDate: 'not-a-date',
+        ascensionRank: 99,
+        bestFloorSinceAscension: -2,
+        ascensionPerks: { vitality: 99, fortune: -3, 'keen-eye': 2, unknown: 50 },
+        selectedModifierIds: ['ironhide', 'ironhide', 'fake-modifier'],
+        defeatedEnemyIds: ['cinder-sprout', 'unknown-enemy', 'cinder-sprout'],
+      },
+    });
+    expect(restored.schemaVersion).toBe(6);
+    expect(restored.endless).toEqual({
+      dailyAttemptDate: null,
+      dailyBestFloor: 1_000_000,
+      dailyBestDate: null,
+      ascensionRank: 5,
+      bestFloorSinceAscension: 0,
+      ascensionPerks: { vitality: 5, fortune: 0, 'keen-eye': 2 },
+      selectedModifierIds: ['ironhide'],
+      defeatedEnemyIds: ['cinder-sprout'],
+    });
   });
 
   it('refuses to open a save from a future schema version', () => {

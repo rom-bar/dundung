@@ -148,6 +148,11 @@ export interface DungeonRunState {
   petElement: Element;
   phase: DungeonPhase;
   rngSeed: number;
+  mode: DungeonRunMode;
+  dailyDateKey: string | null;
+  modifierIds: string[];
+  ascensionRank: number;
+  challengeEffects: DungeonChallengeEffects;
   petStats: Stats;
   runStatMultipliers: Stats;
   coinMultiplier: number;
@@ -195,6 +200,30 @@ export interface DungeonProgress {
   activeRun: DungeonRunState | null;
 }
 
+export type DungeonRunMode = 'standard' | 'daily';
+export type AscensionPerkId = 'vitality' | 'fortune' | 'keen-eye';
+
+export interface DungeonChallengeEffects {
+  enemyStatsMultiplier: number;
+  enemyHpMultiplier: number;
+  enemyAttackMultiplier: number;
+  enemySpeedMultiplier: number;
+  lootChanceMultiplier: number;
+  rarityLuckBonus: number;
+  maxHpMultiplier: number;
+}
+
+export interface EndlessProgress {
+  dailyAttemptDate: string | null;
+  dailyBestFloor: number;
+  dailyBestDate: string | null;
+  ascensionRank: number;
+  bestFloorSinceAscension: number;
+  ascensionPerks: Record<AscensionPerkId, number>;
+  selectedModifierIds: string[];
+  defeatedEnemyIds: string[];
+}
+
 export type HomeUpgradeId = 'kitchen' | 'gym' | 'workshop' | 'nursery' | 'library';
 
 export interface PreparedMeal {
@@ -225,7 +254,7 @@ export type CooldownKey = 'feed' | 'play' | 'clean' | 'sleep';
 export type ActionLabel = CooldownKey | 'train';
 
 export interface GameState {
-  schemaVersion: 5;
+  schemaVersion: 6;
   seed: number;
   stage: LifeStage;
   stageSeconds: number;
@@ -250,6 +279,7 @@ export interface GameState {
   equipment: EquipmentState;
   home: HomeProgress;
   records: GameRecords;
+  endless: EndlessProgress;
   miniGameCooldownSeconds: number;
   peakLevel: number;
 }
@@ -274,7 +304,9 @@ export type GameAction =
   | { type: 'use-evolution-stone' }
   | { type: 'home-upgrade'; upgradeId: HomeUpgradeId }
   | { type: 'home-cook-meal'; stat: StatKey }
-  | { type: 'dungeon-start-run'; consumables: string[] }
+  | { type: 'endless-set-modifiers'; modifierIds: string[] }
+  | { type: 'endless-ascend'; perkId: AscensionPerkId }
+  | { type: 'dungeon-start-run'; consumables: string[]; mode?: DungeonRunMode; dateKey?: string }
   | { type: 'dungeon-choose-room'; roomType: DungeonRoomType }
   | { type: 'dungeon-choose-tactic'; tacticId: string }
   | { type: 'dungeon-choose-event'; optionId: string }

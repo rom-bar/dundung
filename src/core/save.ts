@@ -5,6 +5,7 @@ import { createInitialState } from './game';
 import { migrateDungeonProgress } from './dungeon';
 import { sanitizeEquipmentState } from './equipment';
 import { getHomeEffects, getTrainingCap, sanitizeGameRecords, sanitizeHomeProgress } from './home';
+import { sanitizeEndlessProgress } from './endless';
 
 const maximumLevel = Math.max(...Object.values(rules.lifeStages.levelCaps));
 
@@ -51,7 +52,7 @@ function validPetRecord(value: unknown): PetRecord | null {
 export function migrateSave(input: unknown): GameState {
   if (!isRecord(input)) throw new Error('Save data is not an object.');
   const version = typeof input.schemaVersion === 'number' ? input.schemaVersion : 0;
-  if (version > 5) throw new Error(`Save version ${version} is newer than this game.`);
+  if (version > 6) throw new Error(`Save version ${version} is newer than this game.`);
 
   const base = createInitialState(typeof input.seed === 'number' ? input.seed : 1);
   const home = sanitizeHomeProgress(input.home);
@@ -144,7 +145,7 @@ export function migrateSave(input: unknown): GameState {
 
   return {
     ...base,
-    schemaVersion: 5,
+    schemaVersion: 6,
     seed: typeof input.seed === 'number' ? input.seed >>> 0 : base.seed,
     stage,
     stageSeconds: Math.min(nonNegative(input.stageSeconds), rules.lifeStages.stageMinutes[stage] * 60),
@@ -169,6 +170,7 @@ export function migrateSave(input: unknown): GameState {
     equipment,
     home,
     records,
+    endless: sanitizeEndlessProgress(input.endless),
     miniGameCooldownSeconds: boundedNumber(input.miniGameCooldownSeconds, 0, 0, rules.progression.miniGameCooldownSeconds),
     peakLevel: Math.floor(boundedNumber(input.peakLevel, level, level, maximumLevel)),
   };

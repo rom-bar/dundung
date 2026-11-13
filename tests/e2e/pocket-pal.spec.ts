@@ -24,7 +24,9 @@ async function installDungeonFixture(page: import('@playwright/test').Page, phas
         };
         const run = {
           generation: 1, floor: 1, roomIndex: 0, biomeId: 'cinder-copse', petFormId: 'fire-emberguard', petElement: 'fire',
-          phase: fixturePhase, rngSeed: 73,
+          phase: fixturePhase, rngSeed: 73, mode: 'standard', dailyDateKey: null, modifierIds: [], ascensionRank: 0,
+          challengeEffects: { enemyStatsMultiplier: 1, enemyHpMultiplier: 1, enemyAttackMultiplier: 1, enemySpeedMultiplier: 1,
+            lootChanceMultiplier: 1, rarityLuckBonus: 0, maxHpMultiplier: 1 },
           petStats: { HP: 80, ATK: 20, DEF: 15, SPD: 15, LUK: 1 },
           runStatMultipliers: { HP: 1, ATK: 1, DEF: 1, SPD: 1, LUK: 1 }, coinMultiplier: 1,
           petHp: 80, petMaxHp: 80, petGauge: 0, petStatuses: [],
@@ -292,7 +294,7 @@ test('Home upgrades, achievements, records and Kitchen meals work on every devic
   await page.getByTestId('home-open').click();
   const home = page.getByRole('dialog', { name: 'Home & family' });
   await expect(home).toBeVisible();
-  await expect(home.getByRole('tab')).toHaveCount(3);
+  await expect(home.getByRole('tab')).toHaveCount(4);
   const kitchen = home.locator('[data-upgrade="kitchen"]');
   await expect(kitchen).toContainText('Level 0 / 5');
   await kitchen.locator('[data-home-action="upgrade"]').click();
@@ -329,7 +331,77 @@ test('Home upgrades, achievements, records and Kitchen meals work on every devic
   for (let index = 0; index < 4; index += 1) await packItems.nth(index).check();
   await expect(packItems.nth(4)).toBeDisabled();
   await dungeon.getByTestId('dungeon-start').click();
-  await expect(dungeon.locator('.run-modifiers')).toHaveText('HP ×1.14');
+  await expect(dungeon.locator('.run-modifiers')).toContainText('HP ×1.14');
+});
+
+test('Endless daily, ascension, modifiers and local ghost battles work on every device', async ({ page }) => {
+  await page.addInitScript(() => {
+    const workerPrototype = Worker.prototype as unknown as { postMessage: (...args: any[]) => void };
+    const originalPostMessage = workerPrototype.postMessage;
+    workerPrototype.postMessage = function (this: Worker, message: any, ...options: any[]) {
+      const loadMessage = message as { type?: string; state?: Record<string, any> };
+      if (loadMessage.type === 'load' && loadMessage.state) {
+        const evolution = loadMessage.state.evolution as Record<string, unknown>;
+        const endless = loadMessage.state.endless as Record<string, any>;
+        loadMessage.state = {
+          ...loadMessage.state,
+          stage: 'adult', paused: false, level: 40, peakLevel: 40,
+          evolution: { ...evolution, formId: 'fire-emberguard', traitIds: [] },
+          formDex: ['fire-emberguard'],
+          endless: { ...endless, bestFloorSinceAscension: 20, dailyAttemptDate: null, selectedModifierIds: [], defeatedEnemyIds: ['cinder-sprout'] },
+        };
+      }
+      return originalPostMessage.call(this, message, ...options);
+    };
+  });
+  await openFreshGame(page);
+  const dimensions = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(dimensions.scrollWidth, 'Endless controls should not cause horizontal overflow').toBeLessThanOrEqual(dimensions.width);
+
+  await page.getByTestId('home-open').click();
+  const home = page.getByRole('dialog', { name: 'Home & family' });
+  await home.getByRole('tab', { name: 'Endless' }).click();
+  await expect(home.getByTestId('open-daily-trial')).toBeEnabled();
+  await expect(home.locator('.daily-date')).toHaveText(/\d{4}-\d{2}-\d{2} · UTC/);
+  await expect(home.locator('.bestiary-entry.is-known')).toContainText('Cinder Sprout');
+  await expect(home.locator('.bestiary-entry.is-unknown')).toHaveCount(19);
+  const unknownEntries = await home.locator('.bestiary-entry.is-unknown').allTextContents();
+  expect(unknownEntries.join(' ')).not.toContain('Cinder Crown');
+
+  await home.locator('[data-perk-id="vitality"]').click();
+  await expect(home.locator('.ascension-progress')).toContainText('Rank 1');
+  await home.getByTestId('modifier-ironhide').check();
+  await home.getByTestId('modifier-quickstep').check();
+  await home.getByTestId('modifier-hardbite').check();
+  await expect(home.getByTestId('modifier-curio')).toBeDisabled();
+  await expect(home.locator('.modifier-count')).toHaveText('3 / 3 selected');
+
+  await home.getByRole('button', { name: 'Create my code' }).click();
+  const output = home.getByTestId('pet-code-output');
+  await expect(output).toHaveValue(/^PP1[ GJ]\./);
+  const code = await output.inputValue();
+  await home.getByTestId('ghost-code-input').fill(code);
+  await home.getByRole('button', { name: 'Validate and battle' }).click();
+  await expect(home.getByTestId('ghost-result')).toBeVisible();
+  await home.getByTestId('ghost-code-input').fill('not-a-pet-code');
+  await home.getByRole('button', { name: 'Validate and battle' }).click();
+  await expect(home.locator('.ghost-error')).toContainText('not a Pocket Pal pet code');
+
+  await home.getByTestId('open-daily-trial').click();
+  const dungeon = page.getByRole('dialog', { name: 'The Endless Descent' });
+  await expect(dungeon.getByTestId('daily-mode')).toHaveAttribute('aria-pressed', 'true');
+  await expect(dungeon.getByTestId('dungeon-start')).toHaveText('Start today’s trial');
+  await dungeon.getByTestId('dungeon-start').click();
+  const runModifiers = dungeon.locator('.run-modifiers');
+  await expect(runModifiers).toContainText('Daily trial');
+  await expect(runModifiers).not.toContainText('Ironhide');
+  await expect(runModifiers).not.toContainText('Quickstep');
+  await expect(runModifiers).not.toContainText('Hardbite');
+  await dungeon.getByRole('button', { name: 'Close dungeon' }).click();
+  await page.getByTestId('home-open').click();
+  await home.getByRole('tab', { name: 'Endless' }).click();
+  await expect(home.getByTestId('open-daily-trial')).toBeDisabled();
+  await expect(home.getByTestId('open-daily-trial')).toHaveText('Today’s trial used');
 });
 
 test('the traveling shop sells gear into the run bag without enabling loadout changes mid-run', async ({ page }) => {

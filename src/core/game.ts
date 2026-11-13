@@ -2,6 +2,7 @@ import rules from '../data/rules.json';
 import foods from '../data/foods.json';
 import { createEmptyEquipment, getEquipmentCombatEffects } from './equipment';
 import { applyHomeAction, createGameRecords, createHomeProgress, getHomeEffects, unlockReadyAchievements } from './home';
+import { applyEndlessAction, createEndlessProgress } from './endless';
 import { applyEquipmentAction } from './inventory';
 import {
   awardTraining,
@@ -34,7 +35,7 @@ function stageDurationSeconds(stage: GameState['stage']): number {
 
 export function createInitialState(seed = 1): GameState {
   return {
-    schemaVersion: 5,
+    schemaVersion: 6,
     seed: seed >>> 0,
     stage: 'egg',
     stageSeconds: 0,
@@ -70,6 +71,7 @@ export function createInitialState(seed = 1): GameState {
     equipment: createEmptyEquipment(),
     home: createHomeProgress(),
     records: createGameRecords(),
+    endless: createEndlessProgress(),
     miniGameCooldownSeconds: 0,
     peakLevel: 1,
   };
@@ -205,6 +207,8 @@ function applyActionCore(state: GameState, action: GameAction): ActionResult {
   if (equipmentResult) return equipmentResult;
   const homeResult = applyHomeAction(state, action);
   if (homeResult) return homeResult;
+  const endlessResult = applyEndlessAction(state, action);
+  if (endlessResult) return endlessResult;
   if (action.type === 'mini-game-complete') return completeMiniGame(state, action);
   if (action.type === 'use-evolution-stone') {
     if (state.evolution.evolutionStones < 1 || !state.evolution.formId) return reject(state, 'No Evolution Stone is ready.');

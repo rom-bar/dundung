@@ -22,6 +22,7 @@ import {
   shouldAutoScrap,
 } from './equipment';
 import { getHomeEffects } from './home';
+import { getDailySeed, getEndlessRunEffects, isValidUtcDateKey, recordBestiaryDefeat, recordEndlessFloor, sanitizeEndlessProgress } from './endless';
 import { nextRandom } from './rng';
 import type {
   ActionResult,
@@ -253,6 +254,19 @@ function safeEquipmentCombatEffects(value: unknown): EquipmentCombatEffects {
   };
 }
 
+function safeChallengeEffects(value: unknown): DungeonRunState['challengeEffects'] {
+  const source = isRecord(value) ? value : {};
+  return {
+    enemyStatsMultiplier: boundedNumber(source.enemyStatsMultiplier, 1, 1, 5),
+    enemyHpMultiplier: boundedNumber(source.enemyHpMultiplier, 1, 0.1, 10),
+    enemyAttackMultiplier: boundedNumber(source.enemyAttackMultiplier, 1, 0.1, 10),
+    enemySpeedMultiplier: boundedNumber(source.enemySpeedMultiplier, 1, 0.1, 10),
+    lootChanceMultiplier: boundedNumber(source.lootChanceMultiplier, 1, 0, 10),
+    rarityLuckBonus: boundedNumber(source.rarityLuckBonus, 0, 0, 1_000),
+    maxHpMultiplier: boundedNumber(source.maxHpMultiplier, 1, 0.1, 3),
+  };
+}
+
 function safeShopEquipmentOffers(value: unknown, seenItemIds: Set<string>): DungeonRunState['shopEquipmentOffers'] {
   if (!Array.isArray(value)) return [];
   return value.slice(0, equipmentRules.shop.offerCount).flatMap((entry) => {
@@ -294,6 +308,10 @@ function safeRun(value: unknown, seenItemIds: Set<string>, packSlotLimit: number
   if (phase === 'loot' && !pendingItem) return null;
   const basePetMax = Math.max(1, Math.round(petStats.HP * runStatMultipliers.HP));
   const petMaxHp = boundedNumber(value.petMaxHp, basePetMax, 1, 1_000_000);
+  const rawMode = value.mode === 'daily' ? 'daily' : 'standard';
+  const dailyDateKey = rawMode === 'daily' && isValidUtcDateKey(value.dailyDateKey) ? value.dailyDateKey : null;
+  const mode = dailyDateKey ? 'daily' : 'standard';
+  const endlessProgress = sanitizeEndlessProgress({ ascensionRank: value.ascensionRank, selectedModifierIds: value.modifierIds });
   const run: DungeonRunState = {
     generation: Math.floor(boundedNumber(value.generation, 1, 1, 1_000_000)),
     floor: Math.floor(boundedNumber(value.floor, 1, 1, 1_000_000)),
@@ -303,6 +321,11 @@ function safeRun(value: unknown, seenItemIds: Set<string>, packSlotLimit: number
     petElement,
     phase,
     rngSeed: typeof value.rngSeed === 'number' && Number.isFinite(value.rngSeed) ? value.rngSeed >>> 0 : 1,
+    mode,
+    dailyDateKey: mode === 'daily' ? dailyDateKey : null,
+    modifierIds: mode === 'daily' ? [] : endlessProgress.selectedModifierIds,
+    ascensionRank: endlessProgress.ascensionRank,
+    challengeEffects: safeChallengeEffects(value.challengeEffects),
     petStats,
     runStatMultipliers,
     coinMultiplier: boundedNumber(value.coinMultiplier, 1, 0.1, dungeonRules.maxRunCoinMultiplier),
@@ -384,13 +407,26 @@ export function calculateDamage(input: DamageInput): number {
   return Math.max(dungeonRules.minimumDamage, Math.floor(damage));
 }
 
-export function scaleEnemy(template: EnemyTemplate, floor: number): Stats {
-  const factor = Math.pow(dungeonRules.enemyScalingPerFloor, Math.max(1, floor) * dungeonRules.floorExponent);
+export function scaleEnemy(
+  template: EnemyTemplate,
+  floor: number,
+  challengeEffects: DungeonRunState['challengeEffects'] = {
+    enemyStatsMultiplier: 1,
+    enemyHpMultiplier: 1,
+    enemyAttackMultiplier: 1,
+    enemySpeedMultiplier: 1,
+    lootChanceMultiplier: 1,
+    rarityLuckBonus: 0,
+    maxHpMultiplier: 1,
+  },
+): Stats {
+  const factor = Math.pow(dungeonRules.enemyScalingPerFloor, Math.max(1, floor) * dungeonRules.floorExponent)
+    * challengeEffects.enemyStatsMultiplier;
   const scaled: Stats = {
-    HP: Math.max(1, Math.round(template.stats.HP * factor)),
-    ATK: Math.max(1, Math.round(template.stats.ATK * factor)),
+    HP: Math.max(1, Math.round(template.stats.HP * factor * challengeEffects.enemyHpMultiplier)),
+    ATK: Math.max(1, Math.round(template.stats.ATK * factor * challengeEffects.enemyAttackMultiplier)),
     DEF: Math.max(1, Math.round(template.stats.DEF * factor)),
-    SPD: Math.max(1, Math.round(template.stats.SPD * factor)),
+    SPD: Math.max(1, Math.round(template.stats.SPD * factor * challengeEffects.enemySpeedMultiplier)),
     LUK: Math.max(1, Math.round(template.stats.LUK * factor)),
   };
   if (template.kind === 'elite') {
@@ -429,10 +465,12 @@ function updateChoices(run: DungeonRunState, rng: RngCursor): DungeonRunState {
   return { ...run, roomChoices: choices, rngSeed: rng.seed };
 }
 
-function openInitialRun(state: GameState, packIds: string[]): ActionResult {
+function openInitialRun(state: GameState, packIds: string[], mode: 'standard' | 'daily' = 'standard', dateKey?: string): ActionResult {
   if (state.stage === 'egg' || !state.evolution.formId) return { state, accepted: false, message: 'Wait until Pip has hatched before starting a run.' };
   if (state.sleeping) return { state, accepted: false, message: 'Wake Pip before starting a run.' };
   if (state.dungeon.activeRun) return { state, accepted: false, message: 'Finish the current run before starting another.' };
+  if (mode === 'daily' && !isValidUtcDateKey(dateKey)) return { state, accepted: false, message: 'Choose a valid UTC date for the daily trial.' };
+  if (mode === 'daily' && state.endless.dailyAttemptDate === dateKey) return { state, accepted: false, message: 'Today’s daily trial has already been used on this save.' };
   const homeEffects = getHomeEffects(state.home, state.formDex.length);
   if (!Array.isArray(packIds) || packIds.length > homeEffects.packSlots || new Set(packIds).size !== packIds.length || packIds.some((id) => !consumables.some((item) => item.id === id))) {
     return { state, accepted: false, message: `Choose up to ${homeEffects.packSlots} different pack items.` };
@@ -445,7 +483,13 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
   const runStatMultipliers: Stats = { HP: 1, ATK: 1, DEF: 1, SPD: 1, LUK: 1 };
   if (meal) runStatMultipliers[meal.stat] = 1 + meal.bonus;
   const runMaxHp = Math.max(1, Math.round(petStats.HP * runStatMultipliers.HP));
-  const rng = makeRng((state.seed ^ Math.imul(state.dungeon.runsCompleted + 1, 0x9e3779b9)) >>> 0);
+  const selectedModifierIds = mode === 'daily' ? [] : state.endless.selectedModifierIds;
+  const endlessEffects = getEndlessRunEffects(state.endless, selectedModifierIds, mode);
+  const challengeMaxHp = Math.max(1, Math.round(runMaxHp * endlessEffects.challengeEffects.maxHpMultiplier));
+  const seed = mode === 'daily'
+    ? getDailySeed(dateKey!)
+    : (state.seed ^ Math.imul(state.dungeon.runsCompleted + 1, 0x9e3779b9)) >>> 0;
+  const rng = makeRng(seed);
   const run: DungeonRunState = {
     generation: state.generation,
     floor: dungeonRules.startingFloor,
@@ -455,11 +499,16 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     petElement: form.element,
     phase: 'choice',
     rngSeed: rng.seed,
+    mode,
+    dailyDateKey: mode === 'daily' ? dateKey! : null,
+    modifierIds: selectedModifierIds,
+    ascensionRank: state.endless.ascensionRank,
+    challengeEffects: endlessEffects.challengeEffects,
     petStats,
     runStatMultipliers,
-    coinMultiplier: Math.min(dungeonRules.maxRunCoinMultiplier, 1 + equipmentEffects.coinFind),
-    petHp: runMaxHp,
-    petMaxHp: runMaxHp,
+    coinMultiplier: Math.min(dungeonRules.maxRunCoinMultiplier, (1 + equipmentEffects.coinFind) * endlessEffects.coinMultiplier),
+    petHp: challengeMaxHp,
+    petMaxHp: challengeMaxHp,
     petGauge: 0,
     petStatuses: [],
     equipmentEffects,
@@ -477,7 +526,7 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     pendingItem: null,
     pendingScrap: 0,
     pendingEssence: 0,
-    combatLog: [meal ? `The descent begins. Kitchen meal boosts ${meal.stat} by ${Math.round(meal.bonus * 100)}% this run.` : 'The descent begins. Choose a path.'],
+    combatLog: [mode === 'daily' ? `The daily trial begins for ${dateKey} UTC.` : 'The descent begins. Choose a path.', ...(meal ? [`Kitchen meal boosts ${meal.stat} by ${Math.round(meal.bonus * 100)}% this run.`] : [])],
     combatElapsedSeconds: 0,
     turns: 0,
     result: null,
@@ -495,6 +544,10 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
   // The meal is a one-run snapshot, consumed only after all start checks succeed.
   const nextHome = meal ? { ...state.home, preparedMeal: null } : state.home;
   const nextRecords = { ...state.records, bestRunFloor: Math.max(state.records.bestRunFloor, nextRun.floor) };
+  const endless = recordEndlessFloor({
+    ...state.endless,
+    dailyAttemptDate: mode === 'daily' ? dateKey! : state.endless.dailyAttemptDate,
+  }, nextRun.floor, nextRun);
   const dungeon = {
     ...state.dungeon,
     deepestFloor: Math.max(state.dungeon.deepestFloor, nextRun.floor),
@@ -502,9 +555,9 @@ function openInitialRun(state: GameState, packIds: string[]): ActionResult {
     activeRun: nextRun,
   };
   return {
-    state: { ...state, home: nextHome, records: nextRecords, dungeon },
+    state: { ...state, home: nextHome, records: nextRecords, endless, dungeon },
     accepted: true,
-    message: `Pip enters ${getBiomeForFloor(nextRun.floor).name}.${meal ? ` The meal boosts ${meal.stat} by ${Math.round(meal.bonus * 100)}% for this run.` : ''}`,
+    message: `${mode === 'daily' ? 'Daily trial: ' : ''}Pip enters ${getBiomeForFloor(nextRun.floor).name}.${meal ? ` The meal boosts ${meal.stat} by ${Math.round(meal.bonus * 100)}% for this run.` : ''}`,
   };
 }
 
@@ -512,7 +565,7 @@ function spawnEnemy(run: DungeonRunState, kind: EnemyKind, rng: RngCursor): Dung
   const candidates = enemies.filter((enemy) => enemy.biomeId === run.biomeId && enemy.kind === kind);
   if (!candidates.length) return null;
   const template = candidates[Math.floor(rng.roll() * candidates.length)]!;
-  const stats = scaleEnemy(template, run.floor);
+  const stats = scaleEnemy(template, run.floor, run.challengeEffects);
   return {
     id: template.id,
     name: template.name,
@@ -650,7 +703,7 @@ function addLoot(run: DungeonRunState, lootId: string): DungeonRunState {
 
 function rollLootDrops(run: DungeonRunState, drops: LootDrop[], rng: RngCursor): DungeonRunState {
   let next = run;
-  for (const drop of drops) if (rng.roll() < drop.chance) next = addLoot(next, drop.lootId);
+  for (const drop of drops) if (rng.roll() < Math.min(1, drop.chance * run.challengeEffects.lootChanceMultiplier)) next = addLoot(next, drop.lootId);
   return next;
 }
 
@@ -669,7 +722,7 @@ function stageEquipmentDrop(
     () => rng.roll(),
     allocation.id,
     run.floor,
-    run.petStats.LUK,
+    run.petStats.LUK + run.challengeEffects.rarityLuckBonus,
     run.petElement,
     minimumRarity,
   );
@@ -760,6 +813,7 @@ function endRun(state: GameState, run: DungeonRunState, result: 'left' | 'fainte
     ...state,
     equipment,
     records,
+    endless: recordEndlessFloor(state.endless, run.floor, run),
     needs: result === 'fainted' ? { ...state.needs, energy: 0 } : state.needs,
     sleeping: false,
     dungeon: {
@@ -817,7 +871,12 @@ function rewardCombatVictory(state: GameState, run: DungeonRunState, rng: RngCur
     bossFirstBiomes: state.home.bossFirstBiomes.includes(run.biomeId) ? state.home.bossFirstBiomes : [...state.home.bossFirstBiomes, run.biomeId],
     bossClearedFloors: state.home.bossClearedFloors.includes(run.floor) ? state.home.bossClearedFloors : [...state.home.bossClearedFloors, run.floor],
   } : state.home;
-  let nextState: GameState = { ...awardXp(state, xp), home, records };
+  let nextState: GameState = {
+    ...awardXp(state, xp),
+    home,
+    records,
+    endless: recordBestiaryDefeat(state.endless, enemy.id),
+  };
   nextState = updateTendency(nextState, 'fight');
   nextRun = pushLog(nextRun, `${enemy.name} is defeated. +${xp} XP.`);
   const policy = equipmentRules.dropPolicy[kind === 'fight' ? 'normal' : kind];
@@ -1262,7 +1321,8 @@ function descend(state: GameState): ActionResult {
     activeRun: { ...nextRun, rngSeed: rng.seed },
   };
   const records = { ...state.records, bestRunFloor: Math.max(state.records.bestRunFloor, floor) };
-  return { state: { ...state, dungeon, records }, accepted: true, message: `Pip reaches floor ${floor} in ${biome.name}.` };
+  const endless = recordEndlessFloor(state.endless, floor, nextRun);
+  return { state: { ...state, dungeon, records, endless }, accepted: true, message: `Pip reaches floor ${floor} in ${biome.name}.` };
 }
 
 function leave(state: GameState): ActionResult {
@@ -1273,7 +1333,7 @@ function leave(state: GameState): ActionResult {
 
 export function applyDungeonAction(state: GameState, action: GameAction): ActionResult | null {
   switch (action.type) {
-    case 'dungeon-start-run': return openInitialRun(state, action.consumables);
+    case 'dungeon-start-run': return openInitialRun(state, action.consumables, action.mode ?? 'standard', action.dateKey);
     case 'dungeon-choose-room': return chooseRoom(state, action.roomType);
     case 'dungeon-choose-tactic': return chooseTactic(state, action.tacticId);
     case 'dungeon-choose-event': return chooseEvent(state, action.optionId);

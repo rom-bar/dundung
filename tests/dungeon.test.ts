@@ -18,8 +18,8 @@ function readyPet(seed = 41): GameState {
   };
 }
 
-function startRun(seed = 41, pack: string[] = []): GameState {
-  const result = applyAction(readyPet(seed), { type: 'dungeon-start-run', consumables: pack });
+function startRun(seed = 41, pack: string[] = [], mode: 'standard' | 'daily' = 'standard', dateKey?: string): GameState {
+  const result = applyAction(readyPet(seed), { type: 'dungeon-start-run', consumables: pack, mode, dateKey });
   expect(result.accepted).toBe(true);
   expect(result.state.dungeon.activeRun).not.toBeNull();
   return result.state;
@@ -50,8 +50,8 @@ function simulateFirstFight(seed: number): DungeonRunState {
   return next.dungeon.activeRun!;
 }
 
-function simulateOneFloor(seed: number): GameState {
-  let state = startRun(seed);
+function simulateOneFloor(seed: number, mode: 'standard' | 'daily' = 'standard', dateKey?: string): GameState {
+  let state = startRun(seed, [], mode, dateKey);
   const initialRun = state.dungeon.activeRun!;
   state = withRun(state, {
     ...initialRun,
@@ -106,6 +106,17 @@ describe('Phase 4 dungeon core', () => {
     expect(secondFloor.HP).toBeGreaterThan(firstFloor.HP);
     expect(scaleEnemy(elite, 1).HP).toBe(Math.round(Math.round(elite.stats.HP * 1.09) * 1.6));
     expect(scaleEnemy(boss, 1).HP).toBe(Math.round(Math.round(boss.stats.HP * 1.09) * 2.5));
+    const challenged = scaleEnemy(common, 1, {
+      enemyStatsMultiplier: 1.06,
+      enemyHpMultiplier: 1.25,
+      enemyAttackMultiplier: 1.2,
+      enemySpeedMultiplier: 1.1,
+      lootChanceMultiplier: 1,
+      rarityLuckBonus: 0,
+      maxHpMultiplier: 1,
+    });
+    expect(challenged.HP).toBeGreaterThan(firstFloor.HP);
+    expect(challenged.ATK).toBeGreaterThan(firstFloor.ATK);
   });
 
   it('starts a deterministic three-choice run with a validated three-slot pack', () => {
@@ -130,6 +141,40 @@ describe('Phase 4 dungeon core', () => {
     expect(first.phase).toBe('choice');
     expect(first.coins).toBeGreaterThan(0);
     expect(first.combatLog.some((line) => line.includes('defeated'))).toBe(true);
+  });
+
+  it('records each defeated enemy once in the persistent Bestiary', () => {
+    let state = chooseFight(startRun(511), { HP: 1_000, ATK: 1_000, DEF: 1_000, SPD: 1_000, LUK: 20 });
+    const enemyId = state.dungeon.activeRun!.enemy!.id;
+    for (let tick = 0; tick < 10 && state.dungeon.activeRun?.roomIndex === 0; tick += 1) state = advance(state, 100);
+    expect(state.endless.defeatedEnemyIds).toEqual([enemyId]);
+  });
+
+  it('uses one fixed-seed Daily attempt per UTC date and records its best floor', () => {
+    const dateKey = '2026-11-13';
+    const daily = simulateOneFloor(512, 'daily', dateKey);
+    expect(daily.endless.dailyAttemptDate).toBe(dateKey);
+    expect(daily.endless.dailyBestFloor).toBe(1);
+    expect(daily.endless.dailyBestDate).toBe(dateKey);
+    expect(daily.endless.bestFloorSinceAscension).toBe(1);
+    expect(daily.dungeon.activeRun?.mode).toBe('daily');
+    expect(daily.dungeon.activeRun?.dailyDateKey).toBe(dateKey);
+    expect(daily.dungeon.activeRun?.modifierIds).toEqual([]);
+
+    const closed = applyAction(daily, { type: 'dungeon-close-summary' }).state;
+    const repeat = applyAction(closed, { type: 'dungeon-start-run', consumables: [], mode: 'daily', dateKey });
+    expect(repeat.accepted).toBe(false);
+    const nextDay = applyAction(closed, { type: 'dungeon-start-run', consumables: [], mode: 'daily', dateKey: '2026-11-14' });
+    expect(nextDay.accepted).toBe(true);
+  });
+
+  it('keeps Daily trials free of optional difficulty modifiers', () => {
+    let state = readyPet(513);
+    state = applyAction(state, { type: 'endless-set-modifiers', modifierIds: ['ironhide'] }).state;
+    const daily = applyAction(state, { type: 'dungeon-start-run', consumables: [], mode: 'daily', dateKey: '2026-11-13' });
+    expect(daily.accepted).toBe(true);
+    expect(daily.state.dungeon.activeRun?.modifierIds).toEqual([]);
+    expect(daily.state.dungeon.activeRun?.challengeEffects.enemyHpMultiplier).toBe(1);
   });
 
   it('keeps a complete floor and safe bank deterministic for the same seed', () => {
@@ -267,13 +312,15 @@ describe('Phase 4 dungeon core', () => {
     expect(faintState.records.runsFainted).toBe(1);
   });
 
-  it('bounds persisted dungeon state and keeps valid run snapshots on schema-v5 load', () => {
+  it('bounds persisted dungeon state and keeps valid run snapshots on schema-v6 load', () => {
     const active = startRun(57, ['peppy-potion']);
     const restored = migrateSave(JSON.parse(JSON.stringify(active)) as unknown);
-    expect(restored.schemaVersion).toBe(5);
+    expect(restored.schemaVersion).toBe(6);
     expect(restored.paused).toBe(true);
     expect(restored.dungeon.activeRun?.consumables).toEqual(['peppy-potion']);
     expect(restored.dungeon.activeRun?.petFormId).toBe(formId);
+    expect(restored.dungeon.activeRun?.mode).toBe('standard');
+    expect(restored.dungeon.activeRun?.challengeEffects.enemyStatsMultiplier).toBe(1);
 
     expect(migrateDungeonProgress({ coins: -4, deepestFloor: 1e20, activeRun: { phase: 'combat' } })).toMatchObject({
       coins: 0,

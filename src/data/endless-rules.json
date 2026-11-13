@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "daily": {
+    "resetTimezone": "UTC",
+    "attemptsPerDate": 1,
+    "seedPrefix": "pocket-pal-daily-v1"
+  },
+  "ascension": {
+    "maximumRank": 5,
+    "firstMilestoneFloor": 20,
+    "milestoneFloorStep": 5,
+    "enemyStatsMultiplierPerRank": 0.06,
+    "coinMultiplierPerRank": 0.04,
+    "lootChanceMultiplierPerRank": 0.03,
+    "rarityLuckPerRank": 4,
+    "perks": [
+      {
+        "id": "vitality",
+        "name": "Soft Landing",
+        "description": "Start each run with a little more health.",
+        "maxStacks": 5,
+        "maxHpMultiplierPerStack": 0.04
+      },
+      {
+        "id": "fortune",
+        "name": "Pocket Finder",
+        "description": "Bring home a few more coins from every run.",
+        "maxStacks": 5,
+        "coinMultiplierPerStack": 0.05
+      },
+      {
+        "id": "keen-eye",
+        "name": "Keen Eye",
+        "description": "Find gear a little more often and nudge its rarity upward.",
+        "maxStacks": 5,
+        "lootChanceMultiplierPerStack": 0.08,
+        "rarityLuckPerStack": 7
+      }
+    ]
+  },
+  "difficultyModifiers": {
+    "selectionLimit": 3,
+    "items": [
+      {
+        "id": "ironhide",
+        "name": "Ironhide",
+        "description": "Enemies have 25% more health; banked coins rise by 20%.",
+        "enemyHpMultiplier": 1.25,
+        "enemyAttackMultiplier": 1,
+        "enemySpeedMultiplier": 1,
+        "coinMultiplier": 1.2,
+        "lootChanceMultiplier": 1,
+        "rarityLuckBonus": 0
+      },
+      {
+        "id": "quickstep",
+        "name": "Quickstep",
+        "description": "Enemies move 20% faster; coins rise by 15%.",
+        "enemyHpMultiplier": 1,
+        "enemyAttackMultiplier": 1,
+        "enemySpeedMultiplier": 1.2,
+        "coinMultiplier": 1.15,
+        "lootChanceMultiplier": 1.05,
+        "rarityLuckBonus": 0
+      },
+      {
+        "id": "hardbite",
+        "name": "Hardbite",
+        "description": "Enemies hit 20% harder; coins rise by 25%.",
+        "enemyHpMultiplier": 1,
+        "enemyAttackMultiplier": 1.2,
+        "enemySpeedMultiplier": 1,
+        "coinMultiplier": 1.25,
+        "lootChanceMultiplier": 1.05,
+        "rarityLuckBonus": 0
+      },
+      {
+        "id": "curio",
+        "name": "Curio Trail",
+        "description": "Enemies gain 10% to all stats; gear finds rise by 30%.",
+        "enemyHpMultiplier": 1.1,
+        "enemyAttackMultiplier": 1.1,
+        "enemySpeedMultiplier": 1.1,
+        "coinMultiplier": 1.05,
+        "lootChanceMultiplier": 1.3,
+        "rarityLuckBonus": 4
+      }
+    ]
+  },
+  "bestiary": {
+    "bonusTiers": [
+      { "uniqueEnemies": 5, "coinMultiplier": 1.02, "name": "Field Notes I" },
+      { "uniqueEnemies": 10, "coinMultiplier": 1.02, "name": "Field Notes II" },
+      { "uniqueEnemies": 15, "coinMultiplier": 1.03, "name": "Field Notes III" },
+      { "uniqueEnemies": 20, "coinMultiplier": 1.03, "name": "Field Notes IV" }
+    ]
+  },
+  "petCodes": {
+    "maximumEncodedCharacters": 4096,
+    "maximumDecodedBytes": 8192,
+    "maximumStat": 5000,
+    "maximumLevel": 40,
+    "maximumGeneration": 1000000,
+    "maximumTraits": 3
+  },
+  "ghostBattle": {
+    "maximumTurns": 24,
+    "damageVariance": 0.1
+  }
+}

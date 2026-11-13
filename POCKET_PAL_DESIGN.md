@@ -291,13 +291,20 @@ tests/           vitest unit tests for core
 **Goal:** long-term retention without grind.
 
 - **Daily seeded dungeon** (date-based seed, works offline, one attempt per day with leaderboard-less personal best).
-- **Ascension (prestige):** after reaching a milestone depth, reset dungeon scaling for permanent perks (e.g. +x% drop quality, new biomes, new tactic cards).
+- **Ascension (prestige):** after reaching a milestone depth, increase the challenge and choose a permanent perk; reset only progress toward the next ascension, not lifetime records or gear.
 - **Difficulty modifiers** (opt-in): stackable run modifiers for bonus rewards.
 - **Pet codes:** export/import a compressed string of a pet for friendly **ghost battles** (no server). Validate and sanitize imported codes.
 - **Bestiary:** enemy knowledge unlocks small bonuses.
 
 ### Tests
-- Seed determinism (same date, same dungeon), code encode/decode roundtrip and validation, ascension reset rules.
+- Seed determinism (same date, same dungeon), code encode/decode roundtrip and validation, ascension reset rules, modifier effects, and Bestiary discovery privacy.
+
+### Implementation defaults
+- Daily trials use the UTC date key, a deterministic seeded run, and one attempt per date. The personal best is stored locally; there is no online leaderboard. Daily runs ignore opt-in difficulty modifiers.
+- Ascension starts at floor 20, then requires five additional floors per rank, up to rank 5. Each rank raises enemy stats by 6%, coins by 4%, loot chance by 3%, and rarity luck by 4; it grants one stack of a chosen permanent perk. The milestone, cap, and effects are in `endless-rules.json`.
+- Standard runs can stack up to three of four opt-in difficulty modifiers. Their enemy and reward multipliers are data-driven in `endless-rules.json`.
+- Pet codes use a versioned `PP1` format, gzip when browser streams are available, and URL-safe Base64. Decode validates the version, form, traits, stats, and bounded input size before use. Ghost battles are deterministic, local, capped at 24 turns, and never award run or account rewards.
+- The Bestiary reveals only encountered enemy names. Unique-enemy milestones at 5, 10, 15, and 20 give small permanent coin bonuses. Save schema v6 adds this progress and migrates older saves with bounded defaults.
 
 ---
 

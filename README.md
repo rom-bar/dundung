@@ -1,6 +1,6 @@
 # Pocket Pal
 
-A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phases 1–6**: the care loop, mini mode, life stages, stats, training, form collection, the endless dungeon, loot-driven equipment, and Home meta-progression.
+A tiny, original virtual pet. Care for Pip in short moments; when you leave, the world pauses. This build includes **Phases 1–7**: the care loop, mini mode, life stages, stats, training, form collection, the endless dungeon, loot-driven equipment, Home meta-progression, daily trials, ascension, challenge modifiers, the Bestiary, and local ghost battles.
 
 **Live site:** <https://rom-bar.github.io/dundung/> (available after GitHub Pages is enabled and the first deployment succeeds).
 
@@ -30,7 +30,13 @@ Open **Home** to spend banked coins on five upgrades, each up to level 5. Each l
 
 Gym raises training caps and mini-game rewards. Workshop reduces equipment upgrade and fusion costs and adds five permanent bag spaces per level. Nursery improves stat legacy and passes down an extra trait at level 3. Library makes each discovered form add a small stat bonus; at level 1 it reveals a basic evolution clue, and at level 3 it shows the current top three form-weight hints without exposing undiscovered form names.
 
-Achievements track Form Dex discoveries, depth, boss firsts, and gear sets. Coins, Essence, and keepsakes are awarded once when a goal is reached. **Records** shows lifetime room clears, bosses, safe returns, faints, best depth, coins banked, forms, and equipped set counts. Phase 6 uses save schema v5; existing v4 saves migrate automatically.
+Achievements track Form Dex discoveries, depth, boss firsts, and gear sets. Coins, Essence, and keepsakes are awarded once when a goal is reached. **Records** shows lifetime room clears, bosses, safe returns, faints, best depth, coins banked, forms, and equipped set counts.
+
+## Endless trials and friendly ghosts (Phase 7)
+
+In **Home → Endless**, start one seeded Daily trial per UTC date; your personal best stays on this device, with no online leaderboard. Daily runs ignore your optional challenge modifiers. In standard runs, stack up to three of four opt-in modifiers for better rewards and tougher enemies. Reach floor 20, then five floors farther per ascension, to earn a permanent perk and raise the challenge. The Bestiary reveals enemies as you meet them and grants small coin bonuses at discovery milestones.
+
+Use **Create my code** to share a bounded, versioned pet snapshot, then validate a code for a friendly deterministic ghost battle. Codes are checked and sanitized locally; battles are capped at 24 turns and never award items, coins, or online rankings. Save schema v6 adds Endless progress; earlier saves migrate automatically.
 
 Use the care buttons or keyboard shortcuts: **1–3** offer the three snacks, **P** plays, **S** toggles sleep, and **C** cleans. On portrait phones, the care buttons stick to the bottom when the care section is in view. Open **Settings** to switch Sound or CRT scanlines, choose button size and opacity, mirror the care controls for a left-handed layout, or enable a short touch haptic. These preferences stay on this device. Buttons act once per press; holding them never repeats a care action. The small hash router uses `#/` for the home screen and `#/about` for the About page, which explains the original-content policy.
 
@@ -69,6 +75,7 @@ Gameplay tuning and form definitions live in JSON under `src/data/` rather than 
 - `dungeon-rules.json`, `rooms.json`, `biomes.json`, `enemies.json`, `skills.json`, and `pet-skills.json` define floor pacing, encounter weights, combat tuning, biome themes, enemies, skills, and drops. `events.json`, `consumables.json`, `tactics.json`, and `loot.json` define event choices, the run pack, combat plans, shops, and treasure-token values.
 - `items.json`, `affixes.json`, `sets.json`, and `equipment-rules.json` define gear templates, affix effects, set bonuses, rarity/drop weights, upgrade and fusion rules, capacity and materials. Item behavior is generated from seeded state rather than stored as executable code.
 - `home.json` defines the five Home upgrade curves and effects; `achievements.json` defines milestone progress and one-time coin, Essence, and cosmetic rewards.
+- `endless-rules.json` defines UTC Daily seeds and attempts, ascension milestones and effects, challenge modifiers, Bestiary coin tiers, and pet-code / ghost-battle safety limits.
 
 Phase 4's wallet and pack are intentionally small and run-focused. Phase 5 adds the separate persistent gear bag, Scrap and Essence; Phase 6 adds Home upgrades and achievements, with no paid services.
 
@@ -85,7 +92,7 @@ Mini mode prefers the Document Picture-in-Picture API. If that API is missing or
 
 ## Tests and acceptance checks
 
-`npm run test:unit` covers care, progression, deterministic evolution weights, Home upgrades, meals, achievements, legacy inheritance, v4-to-v5 migration, equipment, dungeon settlement, and sprite overlays. `npm run test:e2e` checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for overflow, touch targets, settings, Form Dex, training, Home upgrades and meals, Gear actions, dungeon shops and loot choices, and offline behavior. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) includes real-device checks emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
+`npm run test:unit` covers care, progression, deterministic evolution weights, Home upgrades, achievements, equipment, save migrations through v6, dungeon settlement, Endless rules, pet-code validation, ghost battles, and sprite overlays. `npm run test:e2e` checks 320×568, 360×740, 390×844, 740×360 landscape, 768×1024 tablet, and 1280×800 desktop for overflow, touch targets, settings, Form Dex, training, Home upgrades, Endless and Bestiary privacy, pet codes, ghost battles, Gear actions, dungeon shops and loot choices, and offline behavior. It stores [visual review screenshots](docs/screenshots/); [`docs/MANUAL_TEST.md`](docs/MANUAL_TEST.md) includes real-device checks emulation cannot prove. The production build also creates a service worker that precaches generated files under the registered repository subpath.
 
 ## Original content
 
