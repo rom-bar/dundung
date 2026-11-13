@@ -69,6 +69,13 @@ tests/           vitest unit tests for core
 - Worker messages: `tick`, `input`, `snapshot`, `save`.
 - Save schema has `version`; `migrate(save)` function with tests.
 
+### 0.6.1 Stage-first screen
+
+- On phones, the app shell fits the dynamic viewport (`100dvh`) without document scrolling. One upper canvas switches between the pocket habitat, dungeon corridor, battle, and event/loot scenes. The pet is drawn over the environment; CSS aspect correction keeps its pixel silhouette readable in a wide, short landscape canvas.
+- A slim status strip carries needs and run HP/coins/floor. The home action row contains Feed, Play, Train, Sleep, and Clean; during a run it changes to Pack, Tactic, Speed, and Leave. Targets stay at least 56 CSS pixels and never overlap.
+- Long material, wallet, pack, care, history, and stat panels live in one bottom sheet. It opens collapsed and uses Pack/Gear/Care/Log/Stats tabs; scene feedback is a one-line ticker, while the full history stays in Log.
+- The stage renderer is a read-only view of `GameState`; it never mutates the seeded simulation. DOM remains responsible for accessible controls, labels, decisions, and detailed panels. Canvas sprites and movement are cosmetic and may be paused for reduced motion.
+
 ### 0.7 Deployment (set up in Phase 1, keep working throughout)
 - `.github/workflows/deploy.yml`: on push to `main`: setup-node, `npm ci`, `npm test`, `npm run build`, `upload-pages-artifact` (`dist`), `deploy-pages`. Permissions `pages: write`, `id-token: write`; concurrency group.
 - README: live URL, enable Pages (Settings, Pages, Source: GitHub Actions), how to add data (foods, quests, items), mini mode support matrix.

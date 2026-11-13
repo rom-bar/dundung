@@ -6,7 +6,7 @@ const screenshotDir = resolve(process.cwd(), 'docs/screenshots');
 
 async function openFreshGame(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Little needs' })).toBeVisible();
+  await expect(page.locator('#stage-location')).toBeVisible();
   await expect(page.locator('[data-need-value="hunger"]')).not.toHaveText('—');
 }
 
@@ -137,24 +137,87 @@ test('first-steps guide opens the first dungeon after hatching', async ({ page }
   await expect(page.getByTestId('dungeon-start')).toBeEnabled();
 });
 
-test('care targets fit the viewport and meet touch size on every device', async ({ page }, testInfo) => {
+test('stage-first home starts collapsed, fills the viewport, and keeps action targets clear', async ({ page }, testInfo) => {
+  await openFreshGame(page);
+  await expect(page.getByTestId('stage-canvas')).toBeVisible();
+  await expect(page.getByTestId('stage-status')).toBeVisible();
+  await expect(page.getByTestId('stage-sheet')).not.toHaveClass(/is-expanded/);
+  await expect(page.getByTestId('stage-sheet-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#stage-location')).toHaveText('HOME');
+
+  const metrics = await page.evaluate(() => ({
+    width: innerWidth,
+    height: innerHeight,
+    documentWidth: document.documentElement.scrollWidth,
+    documentHeight: document.documentElement.scrollHeight,
+    canvasHeight: document.querySelector<HTMLCanvasElement>('#pet-scene')!.getBoundingClientRect().height,
+    sheetClient: document.querySelector<HTMLElement>('#stage-sheet-content')!.clientWidth,
+    sheetScroll: document.querySelector<HTMLElement>('#stage-sheet-content')!.scrollWidth,
+  }));
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.width);
+  expect(metrics.documentHeight).toBeLessThanOrEqual(metrics.height);
+  expect(metrics.sheetScroll).toBeLessThanOrEqual(metrics.sheetClient);
+  if (metrics.width < metrics.height) expect(metrics.canvasHeight).toBeGreaterThanOrEqual(metrics.height * .4);
+
+  const buttons = page.getByTestId('stage-actions-home').locator('.stage-action');
+  await expect(buttons).toHaveCount(5);
+  const boxes = await buttons.evaluateAll((items) => items.map((item) => {
+    const box = item.getBoundingClientRect();
+    return { x: box.x, right: box.right, y: box.y, bottom: box.bottom, width: box.width, height: box.height };
+  }));
+  for (const box of boxes) {
+    expect(box.width).toBeGreaterThanOrEqual(56);
+    expect(box.height).toBeGreaterThanOrEqual(56);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(metrics.width + 1);
+  }
+  for (let left = 0; left < boxes.length; left += 1) {
+    for (let right = left + 1; right < boxes.length; right += 1) {
+      const a = boxes[left]!;
+      const b = boxes[right]!;
+      expect(a.x < b.right && a.right > b.x && a.y < b.bottom && a.bottom > b.y).toBe(false);
+    }
+  }
+
+  if (testInfo.project.name === 'phone-360' || testInfo.project.name === 'landscape-740') {
+    mkdirSync(screenshotDir, { recursive: true });
+    const screenshotName = testInfo.project.name === 'phone-360' ? 'pocket-pal-stage-home-360x740.png' : 'pocket-pal-stage-home-740x360.png';
+    await page.screenshot({ path: resolve(screenshotDir, screenshotName), scale: 'css' });
+  }
+  await page.getByRole('tab', { name: 'Log' }).click();
+  await expect(page.locator('#stage-tab-log')).toBeVisible();
+  await expect(page.getByTestId('stage-sheet-toggle')).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('stage stays in a fixed viewport and stage/care controls meet touch size on every device', async ({ page }, testInfo) => {
   await openFreshGame(page);
   const dimensions = await page.evaluate(() => ({
     viewportWidth: document.documentElement.clientWidth,
     documentWidth: document.documentElement.scrollWidth,
+    documentHeight: document.documentElement.scrollHeight,
     viewportHeight: document.documentElement.clientHeight,
   }));
   expect(dimensions.documentWidth, 'the page should not scroll horizontally').toBeLessThanOrEqual(dimensions.viewportWidth);
+  expect(dimensions.documentHeight, 'the main screen should fit the viewport without page scrolling').toBeLessThanOrEqual(dimensions.viewportHeight);
+
+  const stage = page.locator('#pet-scene');
+  await expect(stage).toBeVisible();
+  const stageBox = await stage.boundingBox();
+  expect(stageBox).not.toBeNull();
+  if (dimensions.viewportWidth < dimensions.viewportHeight) {
+    expect(stageBox!.height, `${testInfo.project.name} stage should fill at least 40% of portrait viewport`).toBeGreaterThanOrEqual(dimensions.viewportHeight * 0.4);
+  }
+
+  await page.getByRole('tab', { name: 'Care' }).click();
+  await expect(page.locator('#stage-drawer')).toHaveClass(/is-expanded/);
+  const sheet = page.locator('#stage-sheet-content');
+  const sheetSize = await sheet.evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth }));
+  expect(sheetSize.scroll, `${testInfo.project.name} sheet should not scroll horizontally`).toBeLessThanOrEqual(sheetSize.client);
 
   const controls = page.locator('.food-button, .action-button');
   await expect(controls).toHaveCount(6);
   await page.locator('#care-controls').scrollIntoViewIfNeeded();
   for (const control of await controls.all()) await expect(control).toBeInViewport();
-  if (dimensions.viewportWidth <= 580) {
-    const dock = await page.locator('#care-controls').boundingBox();
-    expect(dock).not.toBeNull();
-    expect(Math.abs(dock!.y + dock!.height - dimensions.viewportHeight)).toBeLessThanOrEqual(1);
-  }
   const boxes = await controls.evaluateAll((buttons) => buttons.map((button) => {
     const rect = button.getBoundingClientRect();
     return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
@@ -174,10 +237,25 @@ test('care targets fit the viewport and meet touch size on every device', async 
       expect(overlaps, `care controls ${left} and ${right} should not overlap`).toBe(false);
     }
   }
+
+  await page.getByRole('button', { name: /Little details/ }).click();
+  const stageActions = page.locator('#stage-actions-home .stage-action');
+  await expect(stageActions).toHaveCount(5);
+  const actionBoxes = await stageActions.evaluateAll((buttons) => buttons.map((button) => {
+    const rect = button.getBoundingClientRect();
+    return { x: rect.x, right: rect.right, y: rect.y, bottom: rect.bottom, width: rect.width, height: rect.height };
+  }));
+  for (const box of actionBoxes) {
+    expect(box.width, `${testInfo.project.name} stage action should be at least 56px wide`).toBeGreaterThanOrEqual(56);
+    expect(box.height, `${testInfo.project.name} stage action should be at least 56px high`).toBeGreaterThanOrEqual(56);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(dimensions.viewportWidth + 1);
+  }
 });
 
 test('a care action fires on pointerdown and its generated click does not duplicate it', async ({ page }, testInfo) => {
   await openFreshGame(page);
+  await page.getByRole('tab', { name: 'Care' }).click();
   const play = page.getByTestId('action-play');
   await play.dispatchEvent('pointerdown', { pointerId: 41, pointerType: 'touch', isPrimary: true });
   await expect(play).toHaveClass(/is-pressed/);
@@ -200,6 +278,7 @@ test('a care action fires on pointerdown and its generated click does not duplic
 
 test('multiple pointers remain independent and blur clears pressed states', async ({ page }) => {
   await openFreshGame(page);
+  await page.getByRole('tab', { name: 'Care' }).click();
   const feed = page.getByTestId('feed-moonberry-jam');
   const play = page.getByTestId('action-play');
   await feed.dispatchEvent('pointerdown', { pointerId: 51, pointerType: 'touch', isPrimary: true });
@@ -213,6 +292,7 @@ test('multiple pointers remain independent and blur clears pressed states', asyn
 
 test('settings persist size, handedness, opacity, haptics, sound, and CRT choices', async ({ page }) => {
   await openFreshGame(page);
+  await page.getByRole('tab', { name: 'Care' }).click();
   await page.getByTestId('settings-open').click();
   const dialog = page.getByRole('dialog', { name: 'Pocket Pal settings' });
   await expect(dialog).toBeVisible();
@@ -565,11 +645,17 @@ test('Dungeon run opens on desktop and mobile, enforces the three-slot pack, and
   await expect(dialog.locator('#pack-count')).toHaveText('3 / 3');
   await expect(packItems.nth(3)).toBeDisabled();
   await dialog.getByTestId('dungeon-start').click();
+  await expect(page.locator('#stage-location')).toHaveText('CINDER COPSE');
+  await expect(page.getByTestId('stage-actions-run')).toBeVisible();
+  await expect(page.getByTestId('stage-actions-home')).toBeHidden();
   await expect(dialog.locator('[data-testid^="room-"]')).toHaveCount(3);
   await dialog.getByTestId('room-fight').click();
   await expect(dialog.getByTestId('tactic-all-in')).toBeVisible();
   await dialog.getByTestId('tactic-all-in').click();
   await expect(dialog.getByTestId('dungeon-fight')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('#stage-location')).toHaveText('BATTLE', { timeout: 5_000 });
+  await expect(page.locator('#stage-hp-status')).toBeVisible();
+  await expect(page.getByTestId('stage-ticker')).toContainText('auto-fight in progress');
   await expect(dialog.locator('[data-testid^="room-"]')).toHaveCount(3, { timeout: 8_000 });
   await expect(dialog.locator('.dungeon-path .is-cleared')).toHaveCount(1);
   expect(Number(await dialog.locator('.run-ledger span').first().locator('strong').textContent())).toBeGreaterThan(0);
@@ -598,6 +684,7 @@ test('memory mini-game awards a score and applies capped training to the selecte
     };
   });
   await openFreshGame(page);
+  await page.getByRole('tab', { name: 'Care' }).click();
   await expect(page.getByTestId('minigames-open')).toBeEnabled();
   await page.getByTestId('minigames-open').click();
   const dialog = page.getByRole('dialog', { name: 'Training games' });
@@ -624,7 +711,7 @@ test('the installed app reloads offline after the service worker is ready', asyn
   await page.context().setOffline(true);
   try {
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Little needs' })).toBeVisible();
+    await expect(page.locator('#stage-location')).toBeVisible();
     await expect(page.locator('[data-need-value="hunger"]')).not.toHaveText('—');
   } finally {
     await page.context().setOffline(false);
@@ -633,6 +720,7 @@ test('the installed app reloads offline after the service worker is ready', asyn
 
 test('haptics stay off by default and vibrate once when enabled for touch', async ({ page }) => {
   await openFreshGame(page);
+  await page.getByRole('tab', { name: 'Care' }).click();
   await page.evaluate(() => {
     const browserWindow = window as Window & { __vibrateCount?: number };
     browserWindow.__vibrateCount = 0;
@@ -750,6 +838,7 @@ test('mini mode falls back to video PiP and hides cleanly when neither PiP API e
 
 test('left-handed mode mirrors the visual order of both care banks', async ({ page }) => {
   await openFreshGame(page);
+  await page.getByRole('tab', { name: 'Care' }).click();
   const firstFood = page.getByTestId('feed-moonberry-jam');
   const lastFood = page.getByTestId('feed-moss-muffin');
   const firstAction = page.getByTestId('action-play');
@@ -770,6 +859,7 @@ test('all training games fit narrow viewports and expose tappable controls', asy
   test.skip(testInfo.project.name === 'desktop-1280' || testInfo.project.name === 'tablet-768', 'mobile-width regression check');
   await installHatchedFixture(page);
   await openFreshGame(page);
+  await page.getByRole('tab', { name: 'Care' }).click();
 
   for (const game of [
     { name: /Quick Spark/, control: '#reaction-pad' },
@@ -867,7 +957,7 @@ test('every app dialog and its main tab panels stay within mobile viewports', as
     { open: '#forms-open', close: '#dex-close', dialog: '#dex-dialog' },
     { open: '#gear-open', close: '#gear-close', dialog: '#gear-dialog' },
     { open: '#home-open', close: '#home-close', dialog: '#home-dialog' },
-    { open: '#minigames-open', close: '#minigame-close', dialog: '#minigame-dialog' },
+    { open: '#stage-actions-home [data-stage-open="training"]', close: '#minigame-close', dialog: '#minigame-dialog' },
     { open: '#dungeon-open', close: '#dungeon-close', dialog: '#dungeon-dialog' },
   ];
   for (const entry of dialogs) {
@@ -906,7 +996,7 @@ test('capture representative mobile and landscape review states', async ({ page 
     await page.screenshot({ path: resolve(screenshotDir, 'pocket-pal-320-settings.png'), scale: 'css' });
   }
   if (testInfo.project.name === 'phone-360') {
-    await page.getByTestId('action-play').tap();
+    await page.locator('#stage-actions-home [data-action="play"]').tap();
     await page.waitForTimeout(250);
     await page.screenshot({ path: resolve(screenshotDir, 'pocket-pal-360-active.png'), scale: 'css' });
     await page.getByTestId('forms-open').tap();

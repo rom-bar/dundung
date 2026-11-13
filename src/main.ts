@@ -3,7 +3,7 @@ import endlessRules from './data/endless-rules.json';
 import foods from './data/foods.json';
 import { createInitialState, getMood, getNeedSignals } from './core/game';
 import type { GameAction, GameState, HomeUpgradeId, NeedKey, StatKey, WorkerOutMessage } from './core/types';
-import { drawPetScene } from './render/sprite';
+import { drawStageScene, getStageSceneKind, stageCaption, stageLocation } from './render/stage/scene';
 import { playSound, type SoundKind } from './platform/audio';
 import { attachPauseHandlers } from './platform/pause';
 import { loadGame, saveGame } from './platform/storage';
@@ -99,13 +99,17 @@ let selectedFuseIds: string[] = [];
 let selectedHomeTab: 'upgrades' | 'achievements' | 'records' | 'endless' = 'upgrades';
 let selectedMealStat: StatKey = 'ATK';
 let selectedDungeonMode: 'standard' | 'daily' = 'standard';
+type StageTab = 'pack' | 'gear' | 'care' | 'log' | 'stats';
+type AnimationSpeed = '1x' | '2x' | 'skip';
+let selectedStageTab: StageTab = 'care';
+let animationSpeed: AnimationSpeed = readAnimationSpeed();
 let petCodeOutput = '';
 let ghostCodeInput = '';
 let ghostBattleResult: GhostBattleResult | null = null;
 let ghostBattleError = '';
 
 root.innerHTML = `
-  <div class="app-shell">
+  <div class="app-shell stage-shell">
     <header class="topbar">
       <a class="brand" href="${import.meta.env.BASE_URL}#/" aria-label="Pocket Pal home">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -130,7 +134,7 @@ root.innerHTML = `
         <button class="quiet-button" id="settings-open" type="button" aria-label="Settings" aria-haspopup="dialog" aria-controls="settings-dialog" data-testid="settings-open">
           <span class="button-icon" aria-hidden="true">⚙</span><span>Settings</span>
         </button>
-        <button class="quiet-button" id="about-open" type="button" aria-haspopup="dialog">About</button>
+        <button class="quiet-button" id="about-open" type="button" aria-label="About" aria-haspopup="dialog"><span class="button-icon" aria-hidden="true">?</span><span>About</span></button>
         <button class="install-button" id="install-app" type="button" hidden>Install</button>
       </div>
     </header>
@@ -149,25 +153,73 @@ root.innerHTML = `
       </div>
 
       <div class="play-layout">
-        <section class="habitat-panel" aria-label="Pip's cave habitat">
+        <section class="habitat-panel stage-panel" id="stage-panel" aria-label="Pip's living world">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Pip's pocket habitat</p>
               <h2 id="pet-heading">A quiet place to grow</h2>
             </div>
             <span class="live-pill"><span class="live-dot"></span><span id="stage-pill">Egg</span></span>
+            <span class="stage-location" id="stage-location">HOME</span>
           </div>
           <div class="scene-frame">
-            <canvas id="pet-scene" width="240" height="160" role="img" aria-label="Pip resting in a small cave habitat"></canvas>
+            <canvas id="pet-scene" data-testid="stage-canvas" width="240" height="160" role="img" aria-label="Pip resting in a small cave habitat"></canvas>
             <div class="scene-caption"><span id="stage-detail">A tiny life is stirring.</span><span class="scene-pin" aria-hidden="true">✦</span></div>
           </div>
+          <div class="stage-ticker" id="stage-ticker" data-testid="stage-ticker" role="status" aria-live="polite">Pip's little world is waking up.</div>
           <div class="habitat-footer">
             <span class="tiny-ledger"><span class="ledger-dot"></span><span id="save-status">${lastSavedLabel}</span></span>
             <span class="offline-label"><span aria-hidden="true">◌</span> Offline-ready</span>
           </div>
         </section>
 
-        <section class="care-panel" aria-labelledby="care-title">
+        <section class="stage-status-strip" id="stage-status-strip" data-testid="stage-status" aria-label="Pip's quick status">
+          <div class="stage-status-item stage-status-hp" id="stage-hp-status" hidden>
+            <span class="stage-status-icon" aria-hidden="true">♥</span>
+            <div class="stage-status-meter" role="progressbar" aria-label="Pip health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="stage-hp-meter"><span id="stage-hp-fill"></span></div>
+            <strong id="stage-hp-copy">—</strong>
+          </div>
+          <div class="stage-status-item">
+            <span class="stage-status-icon" aria-hidden="true">●</span>
+            <div class="stage-status-meter" role="progressbar" aria-label="Hunger" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="stage-hunger-meter"><span id="stage-hunger-fill"></span></div>
+            <strong id="stage-hunger-copy">100</strong>
+          </div>
+          <div class="stage-status-item">
+            <span class="stage-status-icon stage-energy-icon" aria-hidden="true">ϟ</span>
+            <div class="stage-status-meter" role="progressbar" aria-label="Energy" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" id="stage-energy-meter"><span id="stage-energy-fill"></span></div>
+            <strong id="stage-energy-copy">100</strong>
+          </div>
+          <div class="stage-run-meta" id="stage-run-meta" hidden><span aria-hidden="true">⌁</span><strong id="stage-run-summary">F1 · 0c</strong></div>
+          <div class="stage-home-meta" id="stage-home-meta"><span aria-hidden="true">✦</span><strong id="stage-home-summary">Lv 1</strong></div>
+        </section>
+
+        <nav class="stage-action-row stage-actions-home" id="stage-actions-home" data-testid="stage-actions-home" aria-label="Quick care">
+          <button class="stage-action" type="button" data-action="feed" data-food-id="${foods[0]!.id}" aria-label="Feed Pip"><span aria-hidden="true">●</span><strong>Feed</strong></button>
+          <button class="stage-action" type="button" data-action="play" aria-label="Play with Pip"><span aria-hidden="true">✦</span><strong>Play</strong></button>
+          <button class="stage-action" type="button" data-stage-open="training" aria-label="Open training games"><span aria-hidden="true">◌</span><strong>Train</strong></button>
+          <button class="stage-action" type="button" data-action="toggle-sleep" aria-label="Tuck Pip in or wake Pip"><span aria-hidden="true">☾</span><strong id="stage-sleep-label">Sleep</strong></button>
+          <button class="stage-action" type="button" data-action="clean" aria-label="Clean Pip"><span aria-hidden="true">✧</span><strong>Clean</strong></button>
+        </nav>
+        <nav class="stage-action-row stage-actions-run" id="stage-actions-run" data-testid="stage-actions-run" aria-label="Dungeon controls" hidden>
+          <button class="stage-action" type="button" data-stage-tab="pack" aria-label="Open run pack"><span aria-hidden="true">▣</span><strong>Pack</strong></button>
+          <button class="stage-action" type="button" data-stage-open="dungeon" aria-label="Open current dungeon decision"><span aria-hidden="true">◇</span><strong id="stage-decision-label">Tactic</strong></button>
+          <button class="stage-action" type="button" id="stage-speed" data-stage-speed aria-label="Animation speed 1 times"><span aria-hidden="true">»</span><strong>1×</strong></button>
+          <button class="stage-action" type="button" data-run-action="leave" aria-label="Leave and bank run rewards"><span aria-hidden="true">↩</span><strong>Leave</strong></button>
+        </nav>
+
+        <section class="care-panel stage-drawer" id="stage-drawer" data-testid="stage-sheet" aria-label="Pocket Pal details">
+          <button class="stage-sheet-handle" id="stage-sheet-toggle" data-testid="stage-sheet-toggle" type="button" aria-expanded="false" aria-controls="stage-sheet-content">
+            <span class="sheet-grabber" aria-hidden="true"></span><span class="sheet-heading">Little details</span><span class="sheet-hint">Swipe up or tap</span><span class="sheet-chevron" aria-hidden="true">⌃</span>
+          </button>
+          <div class="stage-sheet-tabs" role="tablist" aria-label="Pet details">
+            <button type="button" role="tab" data-stage-tab="pack" aria-selected="false">Pack</button>
+            <button type="button" role="tab" data-stage-tab="gear" aria-selected="false">Gear</button>
+            <button type="button" role="tab" data-stage-tab="care" aria-selected="true">Care</button>
+            <button type="button" role="tab" data-stage-tab="log" aria-selected="false">Log</button>
+            <button type="button" role="tab" data-stage-tab="stats" aria-selected="false">Stats</button>
+          </div>
+          <div class="stage-sheet-content" id="stage-sheet-content">
+            <section class="stage-sheet-pane" id="stage-tab-care" role="tabpanel" aria-label="Care">
           <div class="care-heading">
             <div><p class="eyebrow">How is Pip doing?</p><h2 id="care-title">Little needs</h2></div>
             <span class="mood-chip" id="mood-chip">Settled</span>
@@ -205,6 +257,12 @@ root.innerHTML = `
           </div>
           </div>
           <p class="key-hint">Keyboard: 1–3 snacks · P play · S sleep · C clean</p>
+            </section>
+            <section class="stage-sheet-pane" id="stage-tab-pack" role="tabpanel" aria-label="Run pack" hidden></section>
+            <section class="stage-sheet-pane" id="stage-tab-gear" role="tabpanel" aria-label="Gear" hidden></section>
+            <section class="stage-sheet-pane" id="stage-tab-log" role="tabpanel" aria-label="Expedition log" hidden></section>
+            <section class="stage-sheet-pane" id="stage-tab-stats" role="tabpanel" aria-label="Pip's stats" hidden></section>
+          </div>
         </section>
       </div>
 
@@ -364,8 +422,10 @@ const hallList = must<HTMLDivElement>('#hall-list');
 const evolutionStoneButton = must<HTMLButtonElement>('#evolution-stone');
 const miniGameTimers = new Set<number>();
 let miniGameInput: ((button: HTMLButtonElement) => void) | null = null;
+let sheetSwipeHandled = false;
 installButton = must<HTMLButtonElement>('#install-app');
 const miniModeButton = must<HTMLButtonElement>('#mini-mode-button');
+must<HTMLElement>('#stage-panel').append(must<HTMLElement>('#getting-started-slot'));
 const miniMode = createMiniMode({
   canvas,
   getState: () => state,
@@ -844,6 +904,61 @@ function renderPack(run: DungeonRunState): string {
   }).join('')}</div>`;
 }
 
+function renderStageTabContent(current: GameState, tab: Exclude<StageTab, 'care'>): string {
+  const run = current.dungeon.activeRun;
+  if (tab === 'pack') {
+    if (!run) {
+      return `<div class="stage-tab-empty"><p>No active run. Your pocket world is at home.</p><p>Banked wallet · ${current.dungeon.coins} coins · ${current.dungeon.scrap} Scrap · ${current.dungeon.essence} Essence</p><button class="quiet-button" type="button" data-stage-open="dungeon">Plan a descent</button></div>`;
+    }
+    return `<div class="stage-tab-heading"><div><p class="eyebrow">Floor ${run.floor} · ${escapeHtml(stageLocation(current))}</p><h3>Run pack & finds</h3></div><button class="quiet-button" type="button" data-stage-open="dungeon">Details</button></div>
+      <div class="stage-ledger"><span><small>Run coins</small><strong>${run.coins}</strong></span><span><small>Run materials</small><strong>${run.pendingScrap} Scrap · ${run.pendingEssence} Essence</strong></span><span><small>Bagged gear</small><strong>${run.pendingItems.length + (run.pendingItem ? 1 : 0)}</strong></span><span><small>Banked wallet</small><strong>${current.dungeon.coins}c · ${current.dungeon.scrap} Scrap</strong></span></div>
+      <div class="stage-pack-items">${renderPack(run)}</div>`;
+  }
+  if (tab === 'gear') {
+    const slots: EquipmentSlot[] = ['Weapon', 'Armor', 'Hat', 'Charm'];
+    const rows = slots.map((slot) => {
+      const item = current.equipment.equipped[slot];
+      const template = item ? getItemTemplate(item.templateId) : null;
+      return `<div class="stage-gear-line"><span>${slot}</span><strong>${template ? escapeHtml(template.name) : 'Empty slot'}</strong><small>${item ? item.rarity : 'A good find can live here'}</small></div>`;
+    }).join('');
+    return `<div class="stage-tab-heading"><div><p class="eyebrow">Pip's current kit</p><h3>Gear & workshop</h3></div><button class="quiet-button" type="button" data-stage-open="gear">Open</button></div><div class="stage-gear-list">${rows}</div>`;
+  }
+  if (tab === 'log') {
+    const entries = run?.combatLog.slice(-10) ?? [];
+    return `<div class="stage-tab-heading"><div><p class="eyebrow">${run ? `Floor ${run.floor}` : 'Pocket journal'}</p><h3>Recent moments</h3></div></div>${entries.length
+      ? `<ol class="stage-log-list" role="log" aria-label="Recent expedition log">${entries.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ol>`
+      : '<p class="stage-tab-empty">Pip’s little adventures will leave a note here.</p>'}`;
+  }
+  const stats = getEffectiveStats(current);
+  return `<div class="stage-tab-heading"><div><p class="eyebrow">Level ${current.level} · ${current.stage}</p><h3>Growth & tendencies</h3></div></div>
+    <div class="stage-stats-grid">${(Object.keys(statLabels) as StatKey[]).map((key) => `<span><small>${key}</small><strong>${stats[key]}</strong><em>+${current.training[key]} trained</em></span>`).join('')}</div>
+    <p class="stage-stat-note">${escapeHtml(must<HTMLParagraphElement>('#tendency-summary').textContent ?? 'Care shapes the next form.')}</p>`;
+}
+
+function renderStageSheet(current: GameState): void {
+  root?.querySelectorAll<HTMLButtonElement>('[data-stage-tab]').forEach((button) => {
+    if (button.getAttribute('role') === 'tab') button.setAttribute('aria-selected', String(button.dataset.stageTab === selectedStageTab));
+  });
+  (['pack', 'gear', 'care', 'log', 'stats'] as StageTab[]).forEach((tab) => {
+    const panel = must<HTMLElement>(`#stage-tab-${tab}`);
+    panel.hidden = tab !== selectedStageTab;
+    if (tab !== 'care') panel.innerHTML = renderStageTabContent(current, tab);
+  });
+}
+
+function readAnimationSpeed(): AnimationSpeed {
+  try {
+    const value = localStorage.getItem('pocket-pal-animation-speed');
+    return value === '2x' || value === 'skip' ? value : '1x';
+  } catch {
+    return '1x';
+  }
+}
+
+function animationSpeedLabel(speed: AnimationSpeed): string {
+  return speed === 'skip' ? 'Skip' : speed === '2x' ? '2×' : '1×';
+}
+
 function renderDungeonStart(current: GameState): string {
   const active = current.stage !== 'egg' && !current.sleeping && Boolean(current.evolution.formId);
   const packLimit = getHomeEffects(current.home, current.formDex.length).packSlots;
@@ -1243,6 +1358,72 @@ function hasFocusedField(dialog: HTMLDialogElement): boolean {
   return active instanceof HTMLElement && dialog.contains(active) && active.matches('input, textarea, select');
 }
 
+function setStageDrawerExpanded(expanded: boolean): void {
+  const drawer = must<HTMLElement>('#stage-drawer');
+  const toggle = must<HTMLButtonElement>('#stage-sheet-toggle');
+  drawer.classList.toggle('is-expanded', expanded);
+  toggle.setAttribute('aria-expanded', String(expanded));
+}
+
+function updateStageHud(current: GameState): void {
+  const run = current.dungeon.activeRun;
+  const hpStatus = must<HTMLElement>('#stage-hp-status');
+  const runMeta = must<HTMLElement>('#stage-run-meta');
+  const homeMeta = must<HTMLElement>('#stage-home-meta');
+  hpStatus.hidden = !run;
+  runMeta.hidden = !run;
+  homeMeta.hidden = Boolean(run);
+
+  const hunger = Math.round(current.needs.hunger);
+  const energy = Math.round(current.needs.energy);
+  for (const [key, value] of [['hunger', hunger], ['energy', energy]] as const) {
+    const fill = must<HTMLElement>(`#stage-${key}-fill`);
+    const meter = must<HTMLElement>(`#stage-${key}-meter`);
+    const copy = must<HTMLElement>(`#stage-${key}-copy`);
+    fill.style.width = `${value}%`;
+    meter.setAttribute('aria-valuenow', String(value));
+    copy.textContent = String(value);
+    meter.classList.toggle('is-low', value < rules.needs.signalThreshold);
+  }
+
+  if (run) {
+    const hp = Math.max(0, Math.round(run.petHp));
+    const maxHp = Math.max(1, Math.round(run.petMaxHp));
+    const percent = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
+    must<HTMLElement>('#stage-hp-fill').style.width = `${percent}%`;
+    const hpMeter = must<HTMLElement>('#stage-hp-meter');
+    hpMeter.setAttribute('aria-valuemax', String(maxHp));
+    hpMeter.setAttribute('aria-valuenow', String(hp));
+    must<HTMLElement>('#stage-hp-copy').textContent = `${hp}`;
+    must<HTMLElement>('#stage-run-summary').textContent = `F${run.floor} · ${run.coins}c`;
+    must<HTMLButtonElement>('#stage-actions-home').hidden = true;
+    must<HTMLButtonElement>('#stage-actions-run').hidden = false;
+    must<HTMLElement>('#stage-decision-label').textContent = run.phase === 'tactic' ? 'Tactic' : run.phase === 'choice' ? 'Path' : run.phase === 'floor-end' ? 'Next' : run.phase === 'summary' ? 'Summary' : 'Details';
+    const leave = must<HTMLButtonElement>('#stage-actions-run [data-run-action="leave"]');
+    leave.disabled = current.paused || run.phase !== 'floor-end';
+  } else {
+    must<HTMLButtonElement>('#stage-actions-home').hidden = false;
+    must<HTMLButtonElement>('#stage-actions-run').hidden = true;
+    must<HTMLElement>('#stage-home-summary').textContent = `Lv ${current.level}`;
+    must<HTMLButtonElement>('#stage-actions-home [data-stage-open="training"]').disabled = current.paused || current.sleeping || current.stage === 'egg' || current.miniGameCooldownSeconds > 0;
+  }
+
+  const stageKind = getStageSceneKind(current);
+  must<HTMLElement>('#stage-location').textContent = stageLocation(current);
+  must<HTMLElement>('#stage-ticker').textContent = stageCaption(current);
+  must<HTMLSpanElement>('#stage-sleep-label').textContent = current.sleeping ? 'Wake' : 'Sleep';
+  canvas.setAttribute('aria-label', stageKind === 'home'
+    ? current.stage === 'egg'
+      ? 'Pip’s egg resting in the cave habitat.'
+      : `${getFormDefinition(current.evolution.formId)?.name ?? 'Pip'} in the cave habitat.`
+    : stageKind === 'battle'
+      ? `${run?.enemy?.name ?? 'An enemy'} faces Pip in a dungeon battle.`
+      : `Pip walking through the ${stageLocation(current).toLowerCase()} dungeon scene.`);
+  const speedButton = must<HTMLButtonElement>('#stage-speed');
+  speedButton.querySelector('strong')!.textContent = animationSpeedLabel(animationSpeed);
+  speedButton.setAttribute('aria-label', `Animation speed ${animationSpeedLabel(animationSpeed)}`);
+}
+
 function updateControls(current: GameState): void {
   root?.querySelectorAll<HTMLButtonElement>('[data-action]').forEach((button) => {
     const action = button.dataset.action;
@@ -1335,7 +1516,9 @@ function updateControls(current: GameState): void {
   overlay.hidden = !current.paused;
   if (current.paused) must<HTMLButtonElement>('#resume-button').focus({ preventScroll: true });
   root?.classList.toggle('crt-on', crtOn);
-  drawPetScene(canvas, current, performance.now() / 1000, prefersReducedMotion.matches);
+  updateStageHud(current);
+  renderStageSheet(current);
+  drawStageScene(canvas, current, performance.now() / 1000, prefersReducedMotion.matches);
   miniMode.update(current);
 }
 
@@ -1426,7 +1609,7 @@ function startLoop(now: number): void {
     }
     lastFrameTime = miniMode.open ? 0 : now;
     if (document.visibilityState === 'visible' || miniMode.kind === 'video') {
-      drawPetScene(canvas, state, now / 1000, prefersReducedMotion.matches);
+      drawStageScene(canvas, state, now / 1000, prefersReducedMotion.matches);
     }
   } else {
     lastFrameTime = 0;
@@ -1492,6 +1675,38 @@ root.addEventListener('click', (event) => {
       renderDungeon(state);
       dungeonDialog.showModal();
     }
+  } else if (button.id === 'stage-sheet-toggle') {
+    if (sheetSwipeHandled) {
+      sheetSwipeHandled = false;
+      return;
+    }
+    setStageDrawerExpanded(!must<HTMLElement>('#stage-drawer').classList.contains('is-expanded'));
+  } else if (button.dataset.stageTab) {
+    const tab = button.dataset.stageTab;
+    if (tab === 'pack' || tab === 'gear' || tab === 'care' || tab === 'log' || tab === 'stats') {
+      selectedStageTab = tab;
+      setStageDrawerExpanded(true);
+      if (state) renderStageSheet(state);
+    }
+  } else if (button.dataset.stageOpen) {
+    if (button.dataset.stageOpen === 'dungeon') {
+      if (state) renderDungeon(state);
+      dungeonDialog.showModal();
+    } else if (button.dataset.stageOpen === 'gear') {
+      if (state) renderEquipment(state);
+      gearDialog.showModal();
+    } else if (button.dataset.stageOpen === 'training') {
+      if (state) updateControls(state);
+      minigameChoices.hidden = false;
+      minigameStage.hidden = true;
+      minigameDialog.showModal();
+    }
+  } else if (button.hasAttribute('data-stage-speed')) {
+    const speeds: AnimationSpeed[] = ['1x', '2x', 'skip'];
+    animationSpeed = speeds[(speeds.indexOf(animationSpeed) + 1) % speeds.length] ?? '1x';
+    writePreference('pocket-pal-animation-speed', animationSpeed);
+    if (state) updateStageHud(state);
+    showToast(`Animation speed · ${animationSpeedLabel(animationSpeed)}.`);
   } else if (button.dataset.action) {
     activateCareButton(button);
   } else if (button.id === 'mini-mode-button') {
@@ -1884,4 +2099,15 @@ attachTouchControls({
   root,
   onActivate: activateCareButton,
   hapticsEnabled: () => hapticsOn,
+});
+
+const stageSheetHandle = must<HTMLButtonElement>('#stage-sheet-toggle');
+let sheetPointerStartY = 0;
+stageSheetHandle.addEventListener('pointerdown', (event) => { sheetPointerStartY = event.clientY; });
+stageSheetHandle.addEventListener('pointerup', (event) => {
+  const delta = event.clientY - sheetPointerStartY;
+  if (Math.abs(delta) < 36) return;
+  setStageDrawerExpanded(delta < 0);
+  sheetSwipeHandled = true;
+  window.setTimeout(() => { sheetSwipeHandled = false; }, 500);
 });

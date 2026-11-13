@@ -2,6 +2,14 @@
 
 Emulator tests can verify layout and event handling, but they cannot judge the comfort of Pip's care controls in a real hand. Open the live site on a phone and check these items:
 
+## Stage-first screen
+
+- [ ] On a 320px or 360px portrait phone, confirm the page itself does not scroll, the live stage fills roughly the upper 45%, and Pip is recognizable without opening a panel.
+- [ ] Check the slim status strip at a glance, then tap Feed, Play, Train, Sleep, and Clean. Targets should be easy to reach and no two controls should overlap.
+- [ ] Tap the bottom-sheet handle and swipe it up/down. Confirm it starts collapsed, opens without hiding the stage entirely, and Pack/Gear/Care/Log/Stats switch panels; long content scrolls inside the sheet.
+- [ ] During a run, confirm the stage changes to a corridor and then a battle scene while the pet remains visible; the ticker shows the latest event and full history remains in Log.
+- [ ] Rotate to 740×360 landscape. Confirm the pet keeps its shape, important controls remain reachable, the onboarding hint does not cover Pip, and there is no horizontal or page overflow.
+
 ## Phase 4 dungeon checks
 
 - [ ] Hatch Pip and open Dungeon. Confirm an egg cannot start a run; after hatching, select up to three different run-only consumables and start.
@@ -20,7 +28,7 @@ Emulator tests can verify layout and event handling, but they cannot judge the c
 
 ## Care and mobile checks
 
-- [ ] At 320px and 360px wide, scroll to Little ways to help; the care dock should stick to the bottom and its food and care buttons should be easy to tap without clipping or touching a neighbor.
+- [ ] On the Care tab, try a snack and each care action; the controls should remain easy to tap without clipping, and their selected size/handedness should match Settings.
 - [ ] Try each snack, Play, Tuck in/Wake up, and Clean; each press should act once, with no repeat while held.
 - [ ] Try holding two different care buttons briefly; their pressed feedback should remain independent and clear on release.
 - [ ] Turn on Haptics in Settings; touch a care button and confirm one short tick. Turn it off and confirm the phone stays quiet.

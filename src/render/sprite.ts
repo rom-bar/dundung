@@ -228,12 +228,26 @@ export function drawPetScene(
   state: GameState,
   nowSeconds: number,
   reducedMotion: boolean,
+  renderCharacter = true,
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;
   const animationTime = reducedMotion ? 0 : nowSeconds;
   drawHabitat(ctx, animationTime, reducedMotion);
+  if (renderCharacter) drawPetCharacter(ctx, state, nowSeconds, reducedMotion);
+}
+
+export function drawPetCharacter(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  nowSeconds: number,
+  reducedMotion: boolean,
+  centerX = 120,
+): void {
+  ctx.save();
+  ctx.translate(centerX - 120, 0);
+  const animationTime = reducedMotion ? 0 : nowSeconds;
 
   const animationActive = state.animationRemainingSeconds > 0;
   const bouncing = animationActive && (state.animation === 'play' || state.animation === 'wake');
@@ -263,4 +277,5 @@ export function drawPetScene(
     ctx.font = '8px monospace';
     ctx.fillText('z', 165, 88 + Math.sin(animationTime * 2 + 1) * (reducedMotion ? 0 : 2));
   }
+  ctx.restore();
 }
